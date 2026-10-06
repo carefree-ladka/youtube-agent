@@ -1,0 +1,22 @@
+# --- Web framework ---
+fastapi>=0.115
+uvicorn[standard]>=0.34
+python-multipart>=0.0.20
+
+# --- Config & settings ---
+pydantic>=2.10
+pydantic-settings>=2.7
+python-dotenv>=1.0
+
+# --- HTTP client (Ollama + general) ---
+httpx>=0.28
+
+# --- Text to speech (smooth neural voices, free) ---
+edge-tts>=7.0
+
+# --- Thumbnails / image composition ---
+pillow>=11.0
+
+# --- Utilities ---
+python-slugify>=8.0
+tenacity>=9.0

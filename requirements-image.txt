@@ -1,0 +1,15 @@
+# =========================================================
+# Optional: local AI image generation for thumbnail backgrounds.
+# Install with:  pip install -r requirements-image.txt
+# Only needed when IMAGE_BACKEND=diffusers in your .env.
+#
+# On Apple Silicon (M1/M2/M3/M4) torch uses the MPS backend automatically.
+# The first generation downloads the model weights (several GB) to the
+# Hugging Face cache (~/.cache/huggingface).
+# =========================================================
+
+torch>=2.4
+diffusers>=0.31
+transformers>=4.44
+accelerate>=1.0
+safetensors>=0.4
