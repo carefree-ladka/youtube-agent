@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     ollama_image_model: str = Field(default="llama3.1")
     ollama_timeout: float = Field(default=180.0)
     ollama_temperature: float = Field(default=0.8)
+    # Thinking/reasoning models (e.g. qwen3) emit long <think> blocks that are
+    # slow and pollute output. Keep OFF for fast, clean generations; set true
+    # only if you specifically want chain-of-thought behavior.
+    ollama_think: bool = Field(default=False)
     # Image generation can be slow; give it a longer timeout.
     ollama_image_timeout: float = Field(default=600.0)
 
@@ -96,6 +100,25 @@ class Settings(BaseSettings):
     comfyui_workflow: str = Field(default="")
     # Image generation can be slow; allow a long timeout.
     comfyui_timeout: float = Field(default=600.0)
+
+    # ---------- Video generation (Remotion) ----------
+    # Max seconds to allow a single Remotion render before timing out.
+    video_render_timeout: float = Field(default=1800.0)
+    # How many video jobs may render at once (renders are heavy; keep low).
+    video_max_concurrent: int = Field(default=1)
+    # Default visual style preset for videos.
+    video_style: str = Field(default="modern-tech")
+    # Generate per-scene SVG visuals (topic-specific illustrations / mock screens
+    # / diagrams) with the text LLM instead of reusing raster backgrounds. These
+    # are crisp at any resolution and vary per scene. Falls back to a designed
+    # SVG if the model is unavailable or returns something invalid.
+    video_svg_assets: bool = Field(default=True)
+    # Cap on how many SVGs to author per video (each is one LLM call); extra
+    # svg elements beyond this use the designed fallback.
+    video_svg_max: int = Field(default=8)
+    # Max seconds to wait for a single SVG to be authored before falling back to
+    # the designed SVG (keeps slow/large models from stalling the whole render).
+    video_svg_timeout: float = Field(default=90.0)
 
     @property
     def output_path(self) -> Path:

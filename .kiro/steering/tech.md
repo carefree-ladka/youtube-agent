@@ -5,7 +5,12 @@
 - **API**: FastAPI + Uvicorn
 - **Config**: pydantic-settings (loads from `.env`)
 - **LLM**: Ollama (local) via its HTTP API, using `httpx` (async)
-- **TTS**: `edge-tts` (free, natural neural voices, no API key)
+- **TTS**: `edge-tts` (free, natural neural voices, no API key). Also emits
+  per-word timestamps (boundary="WordBoundary") used to build synced subtitles.
+- **Video**: generic Remotion (React + TypeScript) engine in `video/`, invoked
+  from Python via `npx remotion render`. Renders both 1080x1920 (portrait reel)
+  and 1920x1080 (landscape long) from one data-driven composition. SFX
+  (click/pop/whoosh) are generated with the Python stdlib `wave` module.
 - **Thumbnails**: Pillow (PIL) for text/branding composition; the text LLM writes the concept
 - **Image generation (optional)**: `diffusers` (Stable Diffusion / FLUX) on
   Apple Silicon MPS / CUDA / CPU, behind a pluggable `ImageProvider`
@@ -71,6 +76,21 @@ uvicorn app.main:app --reload
 Generate from the CLI:
 ```bash
 python cli.py "How compound interest builds wealth" --minutes 6
+```
+
+Video engine setup (one-time) + generate a video via the API:
+```bash
+cd video && npm install        # installs Remotion (first render downloads chromium)
+# then, with the server running (python run.py):
+curl -X POST localhost:8000/videos/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"topic":"What is pgvector?","content_type":"short","target_seconds":30}'
+# -> {"jobId":"...","status":"queued"}  ; poll:
+curl localhost:8000/videos/<jobId>      # status -> completed, videoUrl=/media/<...>/<title-slug>.mp4
+```
+Render a Remotion still/preview directly (debugging):
+```bash
+cd video && npx remotion studio src/index.ts
 ```
 
 List voices:

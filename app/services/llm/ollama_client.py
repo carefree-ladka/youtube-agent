@@ -8,6 +8,7 @@ with retries for transient failures.
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 import httpx
@@ -29,6 +30,24 @@ class OllamaError(RuntimeError):
     """Raised when the Ollama backend fails or returns an unusable response."""
 
 
+# Reasoning models (qwen3, deepseek-r1, ...) may wrap their chain-of-thought in
+# <think>...</think>. We disable thinking at the API level, but strip it too in
+# case a model inlines it anyway, so downstream parsing never sees reasoning.
+_THINK_BLOCK = re.compile(r"<think>.*?</think>", re.IGNORECASE | re.DOTALL)
+
+
+def _strip_think(text: str) -> str:
+    """Remove any <think>...</think> reasoning blocks from model output."""
+    if "<think>" not in text.lower():
+        return text
+    cleaned = _THINK_BLOCK.sub("", text)
+    # Handle an unclosed <think> (truncated reasoning): keep what follows it.
+    lower = cleaned.lower()
+    if "<think>" in lower and "</think>" not in lower:
+        cleaned = cleaned[: lower.index("<think>")]
+    return cleaned
+
+
 class OllamaClient(LLMClient):
     """Async client for a local Ollama instance."""
 
@@ -38,6 +57,7 @@ class OllamaClient(LLMClient):
         self._text_model = settings.ollama_text_model
         self._timeout = settings.ollama_timeout
         self._temperature = settings.ollama_temperature
+        self._think = settings.ollama_think
 
     # ------------------------------------------------------------------ #
     # Public API
@@ -57,7 +77,7 @@ class OllamaClient(LLMClient):
             temperature=temperature,
             json_mode=False,
         )
-        return data.strip()
+        return _strip_think(data).strip()
 
     async def generate_json(
         self,
@@ -119,11 +139,20 @@ class OllamaClient(LLMClient):
             payload["system"] = system
         if json_mode:
             payload["format"] = "json"
+        # Control reasoning for thinking-capable models. Sending think=false is
+        # safe for non-thinking models (they already don't think); it keeps the
+        # big reasoning models fast and their output clean.
+        payload["think"] = self._think
 
         logger.info("Ollama generate (model=%s, json=%s)", model, json_mode)
         try:
             async with httpx.AsyncClient(timeout=self._timeout) as client:
                 resp = await client.post(f"{self._base_url}/api/generate", json=payload)
+                # Some Ollama versions/models reject the "think" field with a 400.
+                # Drop it and retry once rather than failing the whole call.
+                if resp.status_code == 400 and "think" in payload:
+                    payload.pop("think", None)
+                    resp = await client.post(f"{self._base_url}/api/generate", json=payload)
                 resp.raise_for_status()
                 body = resp.json()
         except httpx.HTTPStatusError as exc:
@@ -145,7 +174,7 @@ class OllamaClient(LLMClient):
     @staticmethod
     def _parse_json(raw: str) -> dict[str, Any]:
         """Parse model output into a dict, tolerating stray markdown fences."""
-        text = raw.strip()
+        text = _strip_think(raw).strip()
         # Strip accidental ```json ... ``` fences if a model adds them.
         if text.startswith("```"):
             text = text.strip("`")

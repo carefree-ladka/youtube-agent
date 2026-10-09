@@ -18,3 +18,8 @@ output/
 # OS / editor
 .DS_Store
 *.log
+
+# Remotion / Node video engine
+video/node_modules/
+video/out/
+video/.remotion/

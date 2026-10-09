@@ -84,3 +84,84 @@ class HealthResponse(BaseModel):
     text_model: str
     image_model: str
     tts_voice: str
+
+
+# --------------------------------------------------------------------------- #
+# Video generation
+# --------------------------------------------------------------------------- #
+
+VideoJobStatus = Literal[
+    "queued",
+    "planning",
+    "generating_assets",
+    "generating_tts",
+    "generating_subtitles",
+    "rendering",
+    "completed",
+    "failed",
+]
+
+
+class VideoRequest(BaseModel):
+    """Input for a full video (Short/Reel or long-form) generation run."""
+
+    topic: str = Field(..., min_length=3, description="The video topic or idea.")
+    content_type: Literal["long", "short"] = Field(
+        default="short", description="'short' reel (portrait) or 'long' video (landscape)."
+    )
+    # Orientation override; "auto" picks portrait for short, landscape for long.
+    orientation: Literal["auto", "portrait", "landscape"] = Field(default="auto")
+    tone: str = Field(default="engaging and friendly")
+    audience: str = Field(default="a general audience")
+    target_minutes: int = Field(default=3, ge=1, le=30)
+    target_seconds: int = Field(default=40, ge=10, le=180)
+    language: str = Field(default="English")
+    style: str = Field(default="modern-tech", description="Visual style preset.")
+    fps: int = Field(default=30, ge=24, le=60)
+    # Also produce the companion package (reuses existing services).
+    generate_metadata: bool = Field(default=True)
+    generate_thumbnails: bool = Field(default=True)
+
+    @property
+    def is_short(self) -> bool:
+        return self.content_type == "short"
+
+
+class VideoResult(BaseModel):
+    """Artifacts produced by a video generation run."""
+
+    topic: str
+    title: str
+    project_dir: str
+    orientation: str
+    width: int
+    height: int
+    duration: float
+    script_path: str | None = None
+    audio_path: str | None = None
+    subtitles_path: str | None = None
+    storyboard_path: str | None = None
+    video_path: str | None = None
+    metadata_path: str | None = None
+    thumbnail_paths: list[str] = []
+    warnings: list[str] = []
+
+
+class VideoJob(BaseModel):
+    """Tracks the lifecycle of an asynchronous video generation job."""
+
+    jobId: str
+    status: VideoJobStatus = "queued"
+    topic: str
+    videoUrl: str | None = None
+    result: VideoResult | None = None
+    error: str | None = None
+    createdAt: str
+    updatedAt: str
+
+
+class VideoJobCreated(BaseModel):
+    """Immediate response when a video job is accepted."""
+
+    jobId: str
+    status: VideoJobStatus = "queued"

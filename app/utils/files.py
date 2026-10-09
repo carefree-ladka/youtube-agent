@@ -23,6 +23,16 @@ def make_project_dir(output_root: Path, topic: str) -> Path:
     return project_dir
 
 
+def slug_filename(text: str, suffix: str = "", *, max_len: int = 60, fallback: str = "video") -> str:
+    """Return a filesystem-safe, human-readable file name from arbitrary text.
+
+    Slugifies ``text`` (e.g. a video title) and appends ``suffix`` (such as
+    ".mp4"). Falls back to ``fallback`` when the text slugifies to nothing.
+    """
+    slug = slugify(text or "")[:max_len].strip("-") or fallback
+    return f"{slug}{suffix}"
+
+
 def write_text(path: Path, content: str) -> Path:
     """Write UTF-8 text, creating parent dirs as needed."""
     path.parent.mkdir(parents=True, exist_ok=True)

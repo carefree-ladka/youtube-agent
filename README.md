@@ -157,12 +157,48 @@ Great natural voices: `en-US-JennyNeural`, `en-US-AriaNeural`,
 
 ---
 
+## 🎥 Automatic video generation (Shorts / Reels + long-form)
+Turn a topic into a complete **vertical (1080×1920)** or **landscape (1920×1080)**
+MP4 with **burned-in, karaoke-highlighted subtitles**, animated visuals, and
+transition SFX — fully generic and data-driven (no topic-specific code, ever).
+
+Pipeline: `script → storyboard → visual assets → (reused) TTS → word-synced
+subtitles → Remotion render → <title-slug>.mp4`. It reuses the existing script,
+metadata, thumbnail, TTS, and image-provider services.
+
+One-time setup of the video engine (Node 18+ required):
+```bash
+cd video && npm install        # first render also downloads a headless Chromium
+```
+
+Generate a video (asynchronous / background job):
+```bash
+curl -X POST localhost:8000/videos/generate \
+  -H 'Content-Type: application/json' \
+  -d '{"topic":"What is pgvector?","content_type":"short","target_seconds":30,"style":"modern-tech"}'
+# -> {"jobId":"<uuid>","status":"queued"}
+
+curl localhost:8000/videos/<jobId>
+# -> {"status":"completed","videoUrl":"/media/<project>/<title-slug>.mp4", ...}
+```
+- `content_type`: `short` → portrait 1080×1920, `long` → landscape 1920×1080
+  (override with `"orientation": "portrait" | "landscape"`).
+- `style`: `modern-tech` (default), `minimal`, `cinematic`, `educational`, `news`.
+- Statuses: `queued → planning → generating_tts → generating_subtitles →
+  generating_assets → rendering → completed` (or `failed`).
+- Subtitles are synced from edge-tts word timestamps — no Whisper needed.
+- Scene backgrounds use your configured `IMAGE_BACKEND`; if none/unreachable,
+  a designed gradient+shape background is generated so videos always render.
+
 ## 🔌 API endpoints
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/generate` | Run the full pipeline for a topic |
+| `POST` | `/generate` | Run the full content pipeline for a topic |
+| `POST` | `/videos/generate` | Queue a background video render; returns a jobId |
+| `GET` | `/videos/{jobId}` | Poll video job status + result (videoUrl when done) |
 | `GET` | `/voices` | List available TTS voices |
 | `GET` | `/health` | Service status + Ollama reachability |
+| `GET` | `/media/{path}` | Download generated artifacts (the video, thumbnails) |
 | `GET` | `/docs` | Interactive Swagger UI |
 
 ### `POST /generate` body
@@ -224,3 +260,12 @@ and it will run the agent for you.
   `llama3.1` or `qwen2.5`.
 - **Plain thumbnail text** → no system TrueType font found; install fonts or
   accept the bitmap fallback.
+
+# Vertical Short/Reel (1080x1920)
+python cli.py "How closures work in JavaScript" --video --reel --seconds 40
+
+# Landscape long-form (1920x1080)
+python cli.py "What is Docker?" --video --minutes 2
+
+# Optional: force orientation / pick a style
+python cli.py "Kubernetes basics" --video --orientation landscape --style educational

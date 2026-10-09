@@ -22,14 +22,38 @@ youtube-agent/
 │   │   ├── llm/               # LLMClient interface + OllamaClient
 │   │   ├── tts/               # TTSProvider interface + EdgeTTSProvider
 │   │   ├── image/             # ImageProvider ABC + ollama/diffusers/comfyui providers + factory
-│   │   └── thumbnail/         # ThumbnailGenerator interface + PIL impl
+│   │   ├── thumbnail/         # ThumbnailGenerator interface + PIL impl
+│   │   └── video/             # Generic video pipeline (see below)
 │   └── utils/
 │       └── files.py           # Project folder + file writers
+├── video/                     # Remotion app (React+TS) - generic video renderer
+│   └── src/
+│       ├── Root.tsx           # Composition (calculateMetadata -> any size)
+│       ├── compositions/ShortVideo.tsx
+│       └── components/        # SceneRenderer + per-type element components + SubtitleOverlay
 ├── cli.py                     # Terminal entrypoint
 ├── run.py                     # Uvicorn launcher
 ├── output/                    # Generated content (gitignored)
 └── .kiro/                     # Steering + agents for Kiro
 ```
+
+## Video pipeline (generic, data-driven)
+`app/services/video/`:
+- `storyboard_service.py` - LLM turns the script into a generic scene timeline.
+- `subtitles.py` - groups edge-tts word timings into karaoke subtitle cues.
+- `sfx.py` - generates click/pop/whoosh WAVs (stdlib only).
+- `asset_manager.py` - per-scene images via the existing `ImageProvider` (PIL fallback).
+- `remotion_renderer.py` - writes `props.json` + runs `npx remotion render`.
+- `video_orchestrator.py` - ties script -> TTS(+marks) -> subtitles -> storyboard
+  -> assets -> SFX -> render; reuses metadata + thumbnail services.
+- `jobs.py` - in-process async job manager (statuses: queued, planning,
+  generating_tts, generating_subtitles, generating_assets, rendering,
+  completed, failed).
+
+The Remotion renderer only knows element TYPES (text/image/video/code/diagram/
+shape) via `SceneRenderer` - so ANY topic renders with no new components.
+Dimensions/fps/duration come from the storyboard JSON, so one composition
+renders both 1080x1920 and 1920x1080.
 
 ## Architectural rules
 - **Layering**: `routes -> orchestrator -> services -> providers`. Routes never
@@ -69,6 +93,11 @@ output/<YYYY-MM-DD_HHMMSS>_<slug>/
   image gen): implement `ImageProvider` and register it in
   `app/services/image/__init__.py`'s `build_image_provider()` factory.
 - **New TTS engine**: implement `TTSProvider` and change `get_tts()`.
+- **New video element type** (e.g. "chart"): add it to `VideoElement` (Python)
+  + `types.ts`, add a `<ChartElement>` component, and one `case` in
+  `SceneRenderer.tsx`. No topic code, no orchestrator changes.
+- **New video style**: add a preset to `VIDEO_STYLES` in `app/models/video.py`
+  (name, palette, subtitleStyle...). Select it via the `style` request field.
 
 ## Thumbnail pipeline (how backgrounds work)
 1. Text LLM writes the concept (headline, accent word, subtext, `image_prompt`).

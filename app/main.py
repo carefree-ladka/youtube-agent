@@ -12,9 +12,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app import __version__
-from app.api.routes import generate, health
+from app.api.routes import generate, health, videos
 from app.config import get_settings
 from app.core.logging import configure_logging, get_logger
 
@@ -55,6 +56,10 @@ app.add_middleware(
 
 app.include_router(health.router)
 app.include_router(generate.router)
+app.include_router(videos.router)
+
+# Serve generated artifacts (the rendered video, thumbnails, etc.) under /media.
+app.mount("/media", StaticFiles(directory=str(settings.output_path)), name="media")
 
 
 @app.get("/", tags=["root"])
@@ -64,5 +69,12 @@ async def root() -> dict:
         "name": settings.app_name,
         "version": __version__,
         "docs": "/docs",
-        "endpoints": ["/health", "/generate", "/voices"],
+        "endpoints": [
+            "/health",
+            "/generate",
+            "/voices",
+            "/videos/generate",
+            "/videos/{jobId}",
+            "/media/{path}",
+        ],
     }
