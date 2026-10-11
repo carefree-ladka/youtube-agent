@@ -5,8 +5,19 @@
 - **API**: FastAPI + Uvicorn
 - **Config**: pydantic-settings (loads from `.env`)
 - **LLM**: Ollama (local) via its HTTP API, using `httpx` (async)
-- **TTS**: `edge-tts` (free, natural neural voices, no API key). Also emits
-  per-word timestamps (boundary="WordBoundary") used to build synced subtitles.
+- **TTS**: pluggable via `TTS_PROVIDER`, behind the `TTSProvider` ABC.
+  - `edge` (default): `edge-tts` (free, natural neural voices, no API key). Emits
+    per-word timestamps (boundary="WordBoundary") used to build synced subtitles.
+  - `f5`: `F5-TTS` LOCAL zero-shot voice cloning from a short reference clip
+    (`F5_REF_AUDIO`). Code is MIT but the pretrained WEIGHTS are CC-BY-NC
+    (non-commercial) - flag this for commercial use. Deps live in a separate
+    `requirements-voice.txt`. Outputs 24kHz WAV (the pipeline uses the provider's
+    actual returned path/extension, not a hardcoded `narration.mp3`).
+- **Subtitle alignment (optional)**: F5-TTS has no word boundaries, so when a
+  provider returns no marks the orchestrator reads the REAL audio duration
+  (`audio_duration_seconds`) and, if `TTS_ALIGN=true` and `faster-whisper` is
+  installed (`app/services/tts/alignment.py`), recovers accurate per-word
+  timings; otherwise subtitles are estimated across the audio length.
 - **Video**: generic Remotion (React + TypeScript) engine in `video/`, invoked
   from Python via `npx remotion render`. Renders both 1080x1920 (portrait reel)
   and 1920x1080 (landscape long) from one data-driven composition. SFX
@@ -14,6 +25,9 @@
 - **Thumbnails**: Pillow (PIL) for text/branding composition; the text LLM writes the concept
 - **Image generation (optional)**: `diffusers` (Stable Diffusion / FLUX) on
   Apple Silicon MPS / CUDA / CPU, behind a pluggable `ImageProvider`
+- **Web enrichment (optional)**: `httpx` calls to Wikipedia (facts) + Openverse
+  (license-aware images); optional DuckDuckGo/Pexels/Pixabay. Grounds the script
+  and on-screen content in REAL info. Behind `WEB_ENRICH` / `IMAGE_BACKEND=web`.
 - **Resilience**: `tenacity` for retries; graceful per-stage error handling
 
 ## Image generation notes
@@ -27,6 +41,36 @@
   That's why we use `diffusers` for real local image generation.
 - First generation downloads model weights to `~/.cache/huggingface` (several GB).
 - Recommended Mac model: `stabilityai/sdxl-turbo` (fast, 1-4 steps, guidance 0).
+
+## Web content enrichment notes (opt-in)
+- Enable with `WEB_ENRICH=true`. The pipeline researches the topic online and
+  grounds the SCRIPT and on-screen `stat`/`quote`/`bullets` in REAL facts (not
+  vague filler). Combine with `IMAGE_BACKEND=web` for real photo backgrounds.
+- Facts source: Wikipedia (no key) by default; `WEB_SEARCH_BACKEND=duckduckgo|both`
+  adds DuckDuckGo (needs `pip install -r requirements-web.txt`). Facts are
+  distilled by the LLM into verified facts/stats/image_queries
+  (`app/services/web/research_service.py`); on failure it degrades to the raw
+  Wikipedia extract, and the whole stage is best-effort (never blocks a run).
+- Images: `WebImageProvider` (`IMAGE_BACKEND=web`) searches a license-aware
+  source - `openverse` (default, no key, CC/public-domain), `pexels`/`pixabay`
+  (free keys), downloads and cover-crops to the frame. It sets
+  `search_based = True` so the asset manager passes a clean query (not a
+  generative prompt).
+- LICENSING: every fetched image's source + license + creator is written to
+  `credits.json` per run. The commercial+modification filter is the safe default,
+  but ALWAYS verify attribution before publishing. Trademarked franchises
+  (e.g. Iron Man) rarely have official art under open licenses - expect
+  openly-licensed real photos, not studio stills.
+
+## Voice cloning notes (F5-TTS)
+- Enable with `TTS_PROVIDER=f5` and set `F5_REF_AUDIO` to a short (~6-12s), clean
+  clip of the voice to clone. `F5_REF_TEXT` is optional (auto-transcribed if empty).
+- Deps live in `requirements-voice.txt` (f5-tts, soundfile, optional
+  faster-whisper). First run downloads F5 weights from Hugging Face (several GB).
+- LICENSE: F5-TTS code is MIT, pretrained weights are CC-BY-NC (non-commercial).
+- No voice catalog: `GET /voices` reports the single configured cloned voice.
+- F5-TTS has no word timings, so subtitles come from `faster-whisper` alignment
+  (if installed) or are estimated from the real audio duration.
 
 ## Image backends (pluggable, via IMAGE_BACKEND)
 - `none` (default): PIL-designed gradient/shape backgrounds, instant, no deps.
@@ -63,6 +107,10 @@ source .venv/bin/activate
 pip install -r requirements.txt
 # Optional: local AI thumbnail backgrounds (large download)
 pip install -r requirements-image.txt
+# Optional: local voice cloning with F5-TTS + word alignment (large download)
+pip install -r requirements-voice.txt
+# Optional: extra web-research source (DuckDuckGo); Wikipedia+Openverse need nothing
+pip install -r requirements-web.txt
 cp .env.example .env
 ```
 

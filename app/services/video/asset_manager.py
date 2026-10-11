@@ -33,12 +33,20 @@ class AssetManager:
     def __init__(self, image_provider: ImageProvider | None) -> None:
         self._provider = image_provider
 
-    async def generate(self, storyboard: VideoStoryboard, assets_dir: Path) -> None:
-        """Fill in ``src`` for every image element, generating files as needed."""
+    async def generate(self, storyboard: VideoStoryboard, assets_dir: Path) -> list[dict]:
+        """Fill in ``src`` for every image element, generating files as needed.
+
+        Returns a list of attribution/credit records for any real images fetched
+        from the web (empty for generative/designed backgrounds).
+        """
         assets_dir.mkdir(parents=True, exist_ok=True)
         provider_ok = bool(self._provider and self._provider.is_available())
+        # Search-based providers (web image search) want a clean query, not a
+        # generative, "cinematic, no text" enriched prompt.
+        search_based = bool(getattr(self._provider, "search_based", False))
         palette = storyboard.style.palette
         accent = storyboard.style.accentColor
+        credits: list[dict] = []
 
         index = 0
         for scene in storyboard.scenes:
@@ -51,15 +59,22 @@ class AssetManager:
                 prompt = (element.image_prompt or "").strip()
 
                 data: bytes | None = None
+                att: dict | None = None
                 if provider_ok and prompt:
+                    query = prompt if search_based else self._enrich(prompt)
                     try:
                         data = await self._provider.generate(  # type: ignore[union-attr]
-                            self._enrich(prompt),
-                            storyboard.width,
-                            storyboard.height,
+                            query, storyboard.width, storyboard.height
                         )
                     except Exception as exc:  # noqa: BLE001 - fall back gracefully
                         logger.warning("Image provider failed for '%s': %s", prompt[:60], exc)
+
+                # Capture attribution for real web images (CC licensing duty).
+                if data and search_based and hasattr(self._provider, "pop_attribution"):
+                    att = self._provider.pop_attribution()  # type: ignore[union-attr]
+                    if att:
+                        att = {**att, "scene": scene.id, "file": filename}
+                        credits.append(att)
 
                 if data:
                     path.write_bytes(data)
@@ -68,12 +83,14 @@ class AssetManager:
                         path, storyboard.width, storyboard.height, palette, accent, seed=prompt or filename
                     )
                 element.src = filename
-                logger.info(
-                    "Scene asset %s -> %s (%s)",
-                    scene.id,
-                    filename,
-                    "AI" if data else "designed",
-                )
+                if data and search_based:
+                    source = (att or {}).get("source") or "web"
+                elif data:
+                    source = "AI"
+                else:
+                    source = "designed"
+                logger.info("Scene asset %s -> %s (%s)", scene.id, filename, source)
+        return credits
 
     @staticmethod
     def _enrich(prompt: str) -> str:

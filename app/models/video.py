@@ -122,8 +122,10 @@ class VideoStyle(BaseModel):
     transitions: str = "slide"
     animationLevel: Literal["low", "medium", "high"] = "high"
     subtitleStyle: SubtitleStyle = Field(default_factory=SubtitleStyle)
-    # Sound-effect toggles
+    # Sound-effect toggles + mix levels (0..1).
     enableSfx: bool = True
+    sfxVolume: float = 0.2       # subtle transition/emphasis cues
+    musicVolume: float = 0.12    # soft background-music bed under narration
 
 
 class VideoStoryboard(BaseModel):
@@ -141,6 +143,8 @@ class VideoStoryboard(BaseModel):
     subtitles: list[Subtitle] = Field(default_factory=list)
     # Map of transition name -> sfx file (e.g. {"fade": "click.wav"}).
     sfx: dict[str, str] = Field(default_factory=dict)
+    # Looping background-music file (staged into the public dir), if any.
+    musicSrc: str | None = None
     title: str | None = None
 
 

@@ -1,0 +1,10 @@
+# =========================================================
+# Optional dependencies for WEB CONTENT ENRICHMENT (WEB_ENRICH=true).
+# Install with:  pip install -r requirements-web.txt
+# Everything else (Wikipedia facts, Openverse images) uses httpx, which is
+# already a base dependency - so this file is only needed for extra sources.
+# =========================================================
+
+# DuckDuckGo text search (WEB_SEARCH_BACKEND=duckduckgo|both) for broader/current
+# facts beyond Wikipedia. Unofficial, free, no API key.
+ddgs

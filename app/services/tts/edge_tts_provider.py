@@ -30,8 +30,14 @@ class EdgeTTSProvider(TTSProvider):
         self._pitch = settings.tts_pitch
         self._volume = settings.tts_volume
 
-    async def synthesize(self, text: str, output_path: Path) -> Path:
-        """Generate an MP3 narration file from text."""
+    async def synthesize(
+        self, text: str, output_path: Path, *, content_type: str = "long"
+    ) -> Path:
+        """Generate an MP3 narration file from text.
+
+        ``content_type`` is accepted for interface parity; edge-tts pacing is
+        controlled by the configured ``TTS_RATE``.
+        """
         if not text.strip():
             raise ValueError("Cannot synthesize empty text.")
 
@@ -55,12 +61,13 @@ class EdgeTTSProvider(TTSProvider):
         return output_path
 
     async def synthesize_timed(
-        self, text: str, output_path: Path
+        self, text: str, output_path: Path, *, language: str = "English", content_type: str = "long"
     ) -> tuple[Path, list[WordMark]]:
         """Synthesize audio and capture precise per-word timings via streaming.
 
         edge-tts emits ``WordBoundary`` events as it streams; we collect them to
         build perfectly-synced subtitles without any separate speech-to-text.
+        ``language`` is unused here (timings come natively from the stream).
         """
         if not text.strip():
             raise ValueError("Cannot synthesize empty text.")

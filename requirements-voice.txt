@@ -1,0 +1,20 @@
+# =========================================================
+# Optional dependencies for LOCAL voice cloning (TTS_PROVIDER=f5).
+# Install with:  pip install -r requirements-voice.txt
+# Kept separate from requirements.txt so the base app stays light.
+# =========================================================
+
+# F5-TTS: zero-shot voice cloning text-to-speech.
+# IMPORTANT: the F5-TTS *code* is MIT, but the pretrained *weights* are
+# CC-BY-NC (non-commercial). Review the license before any commercial use.
+# This pulls in torch, torchaudio, transformers, vocos, cached-path, etc.
+f5-tts
+
+# Reading/writing WAV audio produced by F5-TTS (also used to probe duration).
+soundfile
+
+# OPTIONAL: accurate per-word subtitle timings for cloned audio.
+# F5-TTS emits no word boundaries, so without this subtitles are estimated by
+# evenly distributing the script over the real audio length. Install it for
+# karaoke-accurate captions. Runs on CPU by default (CTranslate2 backend).
+faster-whisper

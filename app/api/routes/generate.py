@@ -8,7 +8,7 @@ from app.api.dependencies import get_orchestrator, get_tts
 from app.core.logging import get_logger
 from app.models.schemas import GenerateRequest, GenerateResponse, VoiceInfo
 from app.services.orchestrator import ContentOrchestrator
-from app.services.tts.edge_tts_provider import EdgeTTSProvider
+from app.services.tts.base import TTSProvider
 
 logger = get_logger(__name__)
 router = APIRouter(tags=["generate"])
@@ -29,7 +29,7 @@ async def generate_content(
 
 @router.get("/voices", response_model=list[VoiceInfo])
 async def list_voices(
-    tts: EdgeTTSProvider = Depends(get_tts),
+    tts: TTSProvider = Depends(get_tts),
 ) -> list[VoiceInfo]:
     """List available TTS voices to help pick a smooth narration voice."""
     try:

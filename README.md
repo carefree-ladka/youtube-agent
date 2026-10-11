@@ -54,6 +54,35 @@ The first generation downloads the model (several GB) to `~/.cache/huggingface`.
 On Apple Silicon it runs on the MPS GPU automatically. Set `IMAGE_BACKEND=none`
 to skip AI images and use the built-in gradient background.
 
+Optional — make videos information-rich with **web research + real images**:
+```bash
+# in .env set:
+#   WEB_ENRICH=true          # research facts -> grounds script + stat/quote/bullets
+#   IMAGE_BACKEND=web         # real, license-aware photos as backgrounds
+#   WEB_IMAGE_SOURCE=openverse   # no key (CC/public-domain); or pexels/pixabay with a key
+# optional extra fact source (DuckDuckGo):
+pip install -r requirements-web.txt   # and set WEB_SEARCH_BACKEND=both
+```
+Facts come from Wikipedia (no key) and are distilled into verified facts/stats
+that the script and on-screen `stat`/`quote`/`bullets` use — so scenes show real
+information instead of paraphrased filler. Each run writes a **`credits.json`**
+with every image's source, license, and creator. **Verify attribution before
+publishing**, and note that trademarked franchises rarely have official art under
+open licenses (you'll get openly-licensed real photos, not studio stills).
+
+Optional — clone your own voice locally with [F5-TTS](https://github.com/SWivid/F5-TTS):
+```bash
+pip install -r requirements-voice.txt   # f5-tts, soundfile, faster-whisper (large)
+# in .env set:
+#   TTS_PROVIDER=f5
+#   F5_REF_AUDIO=/path/to/your-voice-sample.wav   # ~6-12s, clean
+```
+F5-TTS runs fully offline and reads your script in the cloned voice. Weights
+download from Hugging Face on first use. Since it emits no word timings,
+subtitles use `faster-whisper` alignment (if installed) or are estimated from
+the audio length. **License:** F5-TTS code is MIT but its pretrained weights are
+CC-BY-NC (non-commercial) — review before any commercial use.
+
 ### 3. Generate content
 
 **From the CLI (simplest):**
@@ -155,6 +184,9 @@ edge-tts --list-voices          # or GET /voices when the server is running
 Great natural voices: `en-US-JennyNeural`, `en-US-AriaNeural`,
 `en-US-GuyNeural`, `en-GB-SoniaNeural`, `en-US-AndrewMultilingualNeural`.
 
+Prefer your **own** voice? Set `TTS_PROVIDER=f5` and `F5_REF_AUDIO` to clone it
+locally with F5-TTS (see the optional install above).
+
 ---
 
 ## 🎥 Automatic video generation (Shorts / Reels + long-form)
@@ -186,7 +218,9 @@ curl localhost:8000/videos/<jobId>
 - `style`: `modern-tech` (default), `minimal`, `cinematic`, `educational`, `news`.
 - Statuses: `queued → planning → generating_tts → generating_subtitles →
   generating_assets → rendering → completed` (or `failed`).
-- Subtitles are synced from edge-tts word timestamps — no Whisper needed.
+- Subtitles are synced from edge-tts word timestamps — no Whisper needed. (With
+  `TTS_PROVIDER=f5`, timings come from optional `faster-whisper` alignment or an
+  even-distribution estimate.)
 - Scene backgrounds use your configured `IMAGE_BACKEND`; if none/unreachable,
   a designed gradient+shape background is generated so videos always render.
 
@@ -222,7 +256,7 @@ curl localhost:8000/videos/<jobId>
 routes -> orchestrator -> services -> providers
 ```
 - `app/services/llm/` — `LLMClient` interface + `OllamaClient`
-- `app/services/tts/` — `TTSProvider` interface + `EdgeTTSProvider`
+- `app/services/tts/` — `TTSProvider` interface + `EdgeTTSProvider` + `F5TTSProvider` (voice cloning)
 - `app/services/image/` — `ImageProvider` interface + `DiffusersImageProvider` + factory
 - `app/services/thumbnail/` — `ThumbnailGenerator` interface + PIL renderer
 - `app/services/orchestrator.py` — ties stages together, writes output

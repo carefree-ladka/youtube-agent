@@ -71,6 +71,8 @@ export interface VideoStyle {
   animationLevel: "low" | "medium" | "high";
   subtitleStyle: SubtitleStyle;
   enableSfx: boolean;
+  sfxVolume?: number;
+  musicVolume?: number;
 }
 
 export interface VideoStoryboard {
@@ -84,5 +86,6 @@ export interface VideoStoryboard {
   audioSrc?: string | null;
   subtitles: Subtitle[];
   sfx: Record<string, string>;
+  musicSrc?: string | null;
   title?: string | null;
 }

@@ -34,11 +34,13 @@ class ScriptService:
         target_seconds: int = 40,
         language: str = "English",
         technical: bool | None = None,
+        research: str = "",
     ) -> str:
         """Return a narration script ready to feed into the TTS engine.
 
         ``content_type`` "short" produces a tight vertical Reel/Short script;
-        "long" produces a standard YouTube video script.
+        "long" produces a standard YouTube video script. ``research`` is an
+        optional block of verified web facts to ground the script in.
         """
         if technical is None:
             technical = _is_technical(topic)  # heuristic fallback
@@ -54,6 +56,7 @@ class ScriptService:
                 target_seconds=target_seconds,
                 language=language,
                 technical=technical,
+                research=research,
             )
             system = TECHNICAL_SHORT_SCRIPT_SYSTEM if technical else SHORT_SCRIPT_SYSTEM
             script = await self._llm.generate_text(prompt, system=system)
@@ -66,6 +69,7 @@ class ScriptService:
                 target_minutes=target_minutes,
                 language=language,
                 technical=technical,
+                research=research,
             )
             system = TECHNICAL_SCRIPT_SYSTEM if technical else SCRIPT_SYSTEM
             script = await self._llm.generate_text(prompt, system=system)

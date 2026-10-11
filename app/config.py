@@ -50,10 +50,72 @@ class Settings(BaseSettings):
     ollama_image_timeout: float = Field(default=600.0)
 
     # ---------- TTS ----------
+    # Which TTS backend to use: "edge" (edge-tts, online neural voices, free,
+    # word-synced subtitles) or "f5" (F5-TTS, LOCAL zero-shot voice cloning).
+    tts_provider: str = Field(default="edge")
     tts_voice: str = Field(default="en-US-JennyNeural")
     tts_rate: str = Field(default="+0%")
     tts_pitch: str = Field(default="+0Hz")
     tts_volume: str = Field(default="+0%")
+
+    # ---------- F5-TTS (local voice cloning; used when TTS_PROVIDER=f5) ----------
+    # NOTE: F5-TTS code is MIT, but its pretrained WEIGHTS are CC-BY-NC
+    # (non-commercial). Review the license before using cloned audio commercially.
+    # Path to a short (~6-12s), clean reference clip of the voice to clone (wav/mp3).
+    f5_ref_audio: str = Field(default="")
+    # Transcript of the reference clip. Leave empty to auto-transcribe it.
+    f5_ref_text: str = Field(default="")
+    # F5-TTS model preset (downloaded from Hugging Face on first use).
+    f5_model: str = Field(default="F5TTS_v1_Base")
+    # Device for F5 inference: "auto" (cuda>mps>cpu), or force "mps"/"cuda"/"cpu".
+    f5_device: str = Field(default="auto")
+    # Playback speed: long-form uses f5_speed, shorts/reels use f5_speed_short
+    # (slightly faster for snappier pacing).
+    f5_speed: float = Field(default=1.0)
+    f5_speed_short: float = Field(default=1.15)
+    # Loudness: F5's internal RMS normalization target (higher = louder) plus a
+    # final peak-normalization of the output WAV (0..1; 0 disables) so cloned
+    # narration isn't quiet.
+    f5_target_rms: float = Field(default=0.18)
+    f5_peak: float = Field(default=0.98)
+    f5_remove_silence: bool = Field(default=True)
+    # Fixed random seed for reproducible voices (-1 = random each run).
+    f5_seed: int = Field(default=-1)
+
+    # ---------- Web content enrichment (opt-in) --------------------------------
+    # When true, the pipeline researches the topic on the web (facts/stats) and
+    # grounds the script + on-screen stat/quote/bullets in REAL information, and
+    # (with IMAGE_BACKEND=web) uses real, license-aware photos for backgrounds.
+    web_enrich: bool = Field(default=False)
+    # Fact sources: "wikipedia" (no key), "duckduckgo" (needs ddgs), "both", "none".
+    web_search_backend: str = Field(default="wikipedia")
+    # How many distilled facts to feed downstream.
+    web_max_facts: int = Field(default=8)
+    # Network timeout for all web-enrichment HTTP calls (seconds).
+    web_timeout: float = Field(default=20.0)
+    # Polite UA string sent with web requests (Wikipedia/Openverse ask for one).
+    web_user_agent: str = Field(default="youtube-agent/0.1 (local content generator)")
+    # Image source for IMAGE_BACKEND=web: "openverse" (no key),
+    # "pexels"/"pixabay" (need keys), "wikimedia" (no key).
+    web_image_source: str = Field(default="openverse")
+    # Openverse license filter - keep this commercial+modification friendly so
+    # fetched images are safe to reuse (change at your own risk).
+    web_image_license: str = Field(default="commercial,modification")
+    # Filter out mature/NSFW results where the source supports it.
+    web_safe: bool = Field(default=True)
+    # Optional API keys for higher-quality stock sources (free tiers).
+    pexels_api_key: str = Field(default="")
+    pixabay_api_key: str = Field(default="")
+
+    # ---------- Subtitle alignment (for providers without word timings) --------
+    # When a provider (e.g. F5-TTS) returns no word timings, optionally use
+    # faster-whisper to recover accurate per-word timestamps for karaoke subs.
+    # If false or faster-whisper is not installed, subtitles are estimated by
+    # evenly distributing the script across the real audio duration.
+    tts_align: bool = Field(default=True)
+    # faster-whisper model size (tiny|base|small|medium|large-v3) and device.
+    align_model: str = Field(default="base")
+    align_device: str = Field(default="auto")
 
     # ---------- Branding ----------
     # Channel name shown as a pill on thumbnails. Leave empty to show nothing.
@@ -108,6 +170,13 @@ class Settings(BaseSettings):
     video_max_concurrent: int = Field(default=1)
     # Default visual style preset for videos.
     video_style: str = Field(default="modern-tech")
+    # Transition/emphasis SFX playback volume (0..1). Low = subtle but noticeable.
+    video_sfx_volume: float = Field(default=0.2)
+    # Background music bed. Enabled by default with a soft, slow generated pad;
+    # set VIDEO_MUSIC to a royalty-free track to use your own instead.
+    video_music_enabled: bool = Field(default=True)
+    video_music: str = Field(default="")  # path to a music file (loops); empty = generated bed
+    video_music_volume: float = Field(default=0.12)  # low, sits under narration
     # Generate per-scene SVG visuals (topic-specific illustrations / mock screens
     # / diagrams) with the text LLM instead of reusing raster backgrounds. These
     # are crisp at any resolution and vary per scene. Falls back to a designed

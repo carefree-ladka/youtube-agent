@@ -25,12 +25,21 @@ from app.services.script_service import ScriptService
 from app.services.thumbnail.base import ThumbnailGenerator
 from app.services.tts.base import TTSProvider
 from app.services.video.asset_manager import AssetManager
+from app.services.video.music import prepare_music
 from app.services.video.remotion_renderer import RemotionRenderer
 from app.services.video.sfx import generate_sfx
 from app.services.video.storyboard_service import StoryboardService
 from app.services.video.subtitles import build_subtitles, estimate_subtitles
 from app.services.video.svg_service import SvgService
-from app.utils.files import make_project_dir, slug_filename, write_json, write_text
+from app.services.web.research_service import ResearchBrief, ResearchService
+from app.utils.files import (
+    audio_duration_seconds,
+    make_project_dir,
+    slug_filename,
+    write_json,
+    write_social_files,
+    write_text,
+)
 
 logger = get_logger(__name__)
 
@@ -56,6 +65,7 @@ class VideoOrchestrator:
         svg_service: SvgService | None = None,
         metadata_service: MetadataService | None = None,
         thumbnail_generator: ThumbnailGenerator | None = None,
+        research_service: "ResearchService | None" = None,
     ) -> None:
         self._settings = settings
         self._scripts = script_service
@@ -67,6 +77,7 @@ class VideoOrchestrator:
         self._llm = llm
         self._metadata = metadata_service
         self._thumbnails = thumbnail_generator
+        self._research = research_service
 
     async def run(
         self, request: VideoRequest, progress: ProgressCallback | None = None
@@ -97,6 +108,17 @@ class VideoOrchestrator:
         info = await classify_topic(self._llm, request.topic)
         logger.info("Topic technical=%s for '%s'", info.technical, request.topic)
 
+        # 0b) Optional web research: grounds the script + on-screen facts in REAL
+        #     information and provides real image subjects. Best-effort.
+        brief = ResearchBrief()
+        if self._settings.web_enrich and self._research is not None:
+            try:
+                brief = await self._research.research(request.topic)
+            except Exception as exc:  # noqa: BLE001 - enrichment is optional
+                logger.warning("Web enrichment failed: %s", exc)
+                warnings.append(f"Web enrichment failed: {exc}")
+        research_block = brief.as_prompt_block()
+
         # 1) Script + storyboard -------------------------------------------------
         script = await self._scripts.generate(
             request.topic,
@@ -107,6 +129,7 @@ class VideoOrchestrator:
             target_seconds=request.target_seconds,
             language=request.language,
             technical=info.technical,
+            research=research_block,
         )
         script_path = write_text(project_dir / "script.txt", script)
 
@@ -119,6 +142,8 @@ class VideoOrchestrator:
             language=request.language,
             fps=request.fps,
             technical=info.technical,
+            research=research_block,
+            image_queries=brief.image_queries,
         )
 
         # Theme the video by topic so different topics look different (unless the
@@ -139,6 +164,9 @@ class VideoOrchestrator:
                 )
                 title = metadata["youtube"].get("title") or title
                 metadata_path = write_json(project_dir / "metadata.json", metadata)
+                # Copy-paste-ready, quote-free social files (youtube/instagram/
+                # linkedin + standalone tags.txt / keywords.txt).
+                write_social_files(project_dir, metadata)
             except Exception as exc:  # noqa: BLE001
                 logger.exception("Metadata generation failed")
                 warnings.append(f"Metadata generation failed: {exc}")
@@ -158,19 +186,29 @@ class VideoOrchestrator:
 
         # 2) TTS with word timings ----------------------------------------------
         report("generating_tts")
+        # Providers may write a different container (e.g. F5-TTS -> .wav) and
+        # return the ACTUAL path, so we always use what the provider gives back.
         audio_path = project_dir / "audio" / "narration.mp3"
         marks: list = []
         try:
-            audio_path, marks = await self._tts.synthesize_timed(script, audio_path)
+            audio_path, marks = await self._tts.synthesize_timed(
+                script, audio_path, language=request.language, content_type=request.content_type
+            )
         except Exception as exc:  # noqa: BLE001
             logger.exception("Timed TTS failed; retrying plain synth")
             warnings.append(f"Timed TTS failed, used plain audio: {exc}")
-            audio_path = await self._tts.synthesize(script, audio_path)
+            audio_path = await self._tts.synthesize(
+                script, audio_path, content_type=request.content_type
+            )
 
         if marks:
             audio_duration = max(m.end for m in marks)
         else:
-            audio_duration = max(len(script.split()) / _WORDS_PER_SECOND, 1.0)
+            # No word marks (e.g. a voice-cloning provider): prefer the REAL file
+            # duration over a word-count guess so scenes/subtitles stay in sync.
+            audio_duration = audio_duration_seconds(audio_path) or max(
+                len(script.split()) / _WORDS_PER_SECOND, 1.0
+            )
 
         # 3) Subtitles -----------------------------------------------------------
         report("generating_subtitles")
@@ -202,14 +240,38 @@ class VideoOrchestrator:
             except Exception as exc:  # noqa: BLE001 - visuals are best-effort
                 logger.exception("SVG asset generation failed")
                 warnings.append(f"SVG asset generation failed: {exc}")
-        await self._assets.generate(storyboard, assets_dir)
+        image_credits = await self._assets.generate(storyboard, assets_dir)
         sfx = generate_sfx(assets_dir)
+        # Soft, slow background-music bed (generated pad or user's VIDEO_MUSIC).
+        music_src = prepare_music(
+            assets_dir,
+            enabled=self._settings.video_music_enabled,
+            music_path=self._settings.video_music,
+        )
+
+        # Attribution: record image sources + research sources (CC licensing duty).
+        if image_credits or brief.sources:
+            credits = {
+                "topic": request.topic,
+                "note": "Verify each image's license + attribution before publishing.",
+                "images": image_credits,
+                "research_sources": [{"title": s.title, "url": s.url} for s in brief.sources],
+            }
+            write_json(project_dir / "credits.json", credits)
+            if image_credits:
+                logger.info("Wrote credits.json (%d image sources)", len(image_credits))
+        # Stage the narration into the Remotion public dir under its real name
+        # (keeps the correct extension, e.g. .wav for F5-TTS or .mp3 for edge).
+        audio_name = audio_path.name
         try:
-            shutil.copyfile(audio_path, assets_dir / "narration.mp3")
+            shutil.copyfile(audio_path, assets_dir / audio_name)
         except OSError as exc:
             warnings.append(f"Could not stage narration audio: {exc}")
 
-        storyboard.audioSrc = "narration.mp3"
+        storyboard.audioSrc = audio_name
+        storyboard.musicSrc = music_src
+        storyboard.style.sfxVolume = self._settings.video_sfx_volume
+        storyboard.style.musicVolume = self._settings.video_music_volume
         storyboard.subtitles = subtitles
         storyboard.sfx = sfx
         storyboard.title = title

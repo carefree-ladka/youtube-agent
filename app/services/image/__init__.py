@@ -35,6 +35,11 @@ def build_image_provider(settings: Settings) -> ImageProvider | None:
 
         return DiffusersImageProvider(settings)
 
+    if backend == "web":
+        from app.services.image.web_provider import WebImageProvider
+
+        return WebImageProvider(settings)
+
     logger.warning("Unknown IMAGE_BACKEND '%s'; falling back to gradient.", backend)
     return None
 

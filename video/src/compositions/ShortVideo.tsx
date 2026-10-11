@@ -26,13 +26,18 @@ const pickTransitionSfx = (sceneIndex: number, sfx: Record<string, string>): str
 
 export const ShortVideo: React.FC<VideoStoryboard> = (storyboard) => {
   const { fps } = useVideoConfig();
-  const { scenes, style, audioSrc, subtitles, sfx } = storyboard;
+  const { scenes, style, audioSrc, subtitles, sfx, musicSrc } = storyboard;
   const baseColor = style.palette?.[0] ?? "#0F2027";
+  const sfxVolume = style.sfxVolume ?? 0.2;
+  const musicVolume = style.musicVolume ?? 0.12;
 
   return (
     <AbsoluteFill style={{ backgroundColor: baseColor, fontFamily: style.fontFamily }}>
       {/* Narration audio (reused from the existing TTS stage). */}
       {audioSrc ? <Audio src={staticFile(audioSrc)} /> : null}
+
+      {/* Soft, looping background-music bed, kept low under the narration. */}
+      {musicSrc ? <Audio src={staticFile(musicSrc)} loop volume={musicVolume} /> : null}
 
       {/* Scenes, each shifted to its own timeline window. */}
       {scenes.map((scene) => {
@@ -64,7 +69,7 @@ export const ShortVideo: React.FC<VideoStoryboard> = (storyboard) => {
                   durationInFrames={Math.round(0.5 * fps)}
                   name={`sfx-tr-${scene.id}`}
                 >
-                  <Audio src={staticFile(file)} volume={0.5} />
+                  <Audio src={staticFile(file)} volume={sfxVolume} />
                 </Sequence>,
               );
             }
@@ -83,7 +88,7 @@ export const ShortVideo: React.FC<VideoStoryboard> = (storyboard) => {
                   durationInFrames={Math.round(0.5 * fps)}
                   name={`sfx-emph-${scene.id}`}
                 >
-                  <Audio src={staticFile(emphasisFile)} volume={0.4} />
+                  <Audio src={staticFile(emphasisFile)} volume={sfxVolume * 0.8} />
                 </Sequence>,
               );
             }

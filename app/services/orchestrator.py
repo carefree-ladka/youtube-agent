@@ -34,7 +34,8 @@ from app.services.metadata_service import MetadataService
 from app.services.script_service import ScriptService
 from app.services.thumbnail.base import ThumbnailGenerator
 from app.services.tts.base import TTSProvider
-from app.utils.files import make_project_dir, write_json, write_text
+from app.services.web.research_service import ResearchBrief, ResearchService
+from app.utils.files import make_project_dir, write_json, write_social_files, write_text
 
 logger = get_logger(__name__)
 
@@ -50,12 +51,14 @@ class ContentOrchestrator:
         metadata_service: MetadataService,
         tts_provider: TTSProvider,
         thumbnail_generator: ThumbnailGenerator,
+        research_service: "ResearchService | None" = None,
     ) -> None:
         self._settings = settings
         self._scripts = script_service
         self._metadata = metadata_service
         self._tts = tts_provider
         self._thumbnails = thumbnail_generator
+        self._research = research_service
 
     async def run(self, request: GenerateRequest) -> GenerateResponse:
         """Execute the pipeline for a single topic and return artifact paths."""
@@ -66,6 +69,15 @@ class ContentOrchestrator:
         if request.is_short:
             logger.info("Content type: SHORT reel (~%ds)", request.target_seconds)
 
+        # 0) Optional web research to ground the script in real facts.
+        brief = ResearchBrief()
+        if self._settings.web_enrich and self._research is not None:
+            try:
+                brief = await self._research.research(request.topic)
+            except Exception as exc:  # noqa: BLE001 - enrichment is optional
+                logger.warning("Web enrichment failed: %s", exc)
+                warnings.append(f"Web enrichment failed: {exc}")
+
         # 1) Script (required foundation for the rest of the run).
         script = await self._scripts.generate(
             request.topic,
@@ -75,8 +87,18 @@ class ContentOrchestrator:
             target_minutes=request.target_minutes,
             target_seconds=request.target_seconds,
             language=request.language,
+            research=brief.as_prompt_block(),
         )
         script_path = write_text(project_dir / "script.txt", script)
+        if brief.sources:
+            write_json(
+                project_dir / "credits.json",
+                {
+                    "topic": request.topic,
+                    "note": "Research sources used to ground the script.",
+                    "research_sources": [{"title": s.title, "url": s.url} for s in brief.sources],
+                },
+            )
 
         # 2) Metadata (optional).
         metadata: dict | None = None
@@ -92,7 +114,7 @@ class ContentOrchestrator:
                 )
                 title = metadata["youtube"].get("title") or title
                 metadata_path = write_json(project_dir / "metadata.json", metadata)
-                self._write_social_files(project_dir, metadata)
+                write_social_files(project_dir, metadata)
             except Exception as exc:  # noqa: BLE001
                 logger.exception("Metadata generation failed")
                 warnings.append(f"Metadata generation failed: {exc}")
@@ -102,7 +124,8 @@ class ContentOrchestrator:
         if request.generate_audio:
             try:
                 audio_path = await self._tts.synthesize(
-                    script, project_dir / "audio" / "narration.mp3"
+                    script, project_dir / "audio" / "narration.mp3",
+                    content_type=request.content_type,
                 )
             except Exception as exc:  # noqa: BLE001
                 logger.exception("Audio synthesis failed")
@@ -139,39 +162,3 @@ class ContentOrchestrator:
         write_json(project_dir / "summary.json", response.model_dump())
         logger.info("=== Completed run for '%s' (%d warnings)", request.topic, len(warnings))
         return response
-
-    @staticmethod
-    def _write_social_files(project_dir: Path, metadata: dict) -> None:
-        """Write human-friendly, copy-paste-ready social files per platform."""
-        social_dir = project_dir / "social"
-
-        yt = metadata.get("youtube", {})
-        yt_text = (
-            f"TITLE:\n{yt.get('title', '')}\n\n"
-            f"DESCRIPTION:\n{yt.get('description', '')}\n\n"
-            f"TAGS:\n{', '.join(yt.get('tags', []))}\n\n"
-            f"HASHTAGS:\n{' '.join(yt.get('hashtags', []))}\n\n"
-            f"CHAPTERS:\n" + "\n".join(yt.get("chapters", []))
-        )
-        write_text(social_dir / "youtube.txt", yt_text)
-
-        ig = metadata.get("instagram", {})
-        ig_text = (
-            f"CAPTION:\n{ig.get('caption', '')}\n\n"
-            f"HASHTAGS:\n{' '.join(ig.get('hashtags', []))}"
-        )
-        write_text(social_dir / "instagram.txt", ig_text)
-
-        li = metadata.get("linkedin", {})
-        li_text = (
-            f"POST:\n{li.get('post', '')}\n\n"
-            f"HASHTAGS:\n{' '.join(li.get('hashtags', []))}"
-        )
-        write_text(social_dir / "linkedin.txt", li_text)
-
-        titles = metadata.get("titles", [])
-        if titles:
-            write_text(
-                social_dir / "title_options.txt",
-                "\n".join(f"{i + 1}. {t}" for i, t in enumerate(titles)),
-            )

@@ -47,11 +47,15 @@ class StoryboardService:
         language: str = "English",
         fps: int = 30,
         technical: bool = False,
+        research: str = "",
+        image_queries: list[str] | None = None,
     ) -> VideoStoryboard:
         """Return a validated storyboard (unscaled; retime() aligns to audio).
 
         ``technical`` enables code snippets; when False, any code elements the
         model returns are dropped (so non-code topics never show code).
+        ``research``/``image_queries`` ground scenes in real facts and real
+        image subjects when web enrichment is on.
         """
         logger.info(
             "Generating storyboard (%s, ~%ds, technical=%s) for: %s",
@@ -67,6 +71,8 @@ class StoryboardService:
             target_seconds=target_seconds,
             language=language,
             technical=technical,
+            research=research,
+            image_queries=image_queries,
         )
         try:
             data = await self._llm.generate_json(prompt, system=STORYBOARD_SYSTEM)

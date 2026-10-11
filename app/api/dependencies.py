@@ -16,6 +16,7 @@ from app.services.metadata_service import MetadataService
 from app.services.orchestrator import ContentOrchestrator
 from app.services.script_service import ScriptService
 from app.services.thumbnail.pil_thumbnail import PILThumbnailGenerator
+from app.services.tts.base import TTSProvider
 from app.services.tts.edge_tts_provider import EdgeTTSProvider
 from app.services.video.asset_manager import AssetManager
 from app.services.video.jobs import VideoJobManager
@@ -23,6 +24,7 @@ from app.services.video.remotion_renderer import RemotionRenderer
 from app.services.video.storyboard_service import StoryboardService
 from app.services.video.svg_service import SvgService
 from app.services.video.video_orchestrator import VideoOrchestrator
+from app.services.web.research_service import ResearchService
 
 
 @lru_cache
@@ -31,14 +33,28 @@ def get_llm() -> OllamaClient:
 
 
 @lru_cache
-def get_tts() -> EdgeTTSProvider:
-    return EdgeTTSProvider(get_settings())
+def get_tts() -> TTSProvider:
+    """Build the configured TTS provider: edge-tts (default) or F5-TTS cloning."""
+    settings = get_settings()
+    if (settings.tts_provider or "edge").strip().lower() == "f5":
+        # Imported lazily so the heavy voice-cloning deps aren't required unless
+        # the user actually selects F5-TTS.
+        from app.services.tts.f5_tts_provider import F5TTSProvider
+
+        return F5TTSProvider(settings)
+    return EdgeTTSProvider(settings)
 
 
 @lru_cache
 def get_image_provider() -> ImageProvider | None:
     """Build the configured image provider (or None if disabled)."""
     return build_image_provider(get_settings())
+
+
+@lru_cache
+def get_research_service() -> ResearchService:
+    """Web research/enrichment service (shared across pipelines)."""
+    return ResearchService(get_llm(), get_settings())
 
 
 @lru_cache
@@ -52,6 +68,7 @@ def get_orchestrator() -> ContentOrchestrator:
         metadata_service=MetadataService(llm),
         tts_provider=get_tts(),
         thumbnail_generator=PILThumbnailGenerator(settings, llm, get_image_provider()),
+        research_service=get_research_service(),
     )
 
 
@@ -71,6 +88,7 @@ def get_video_orchestrator() -> VideoOrchestrator:
         llm=llm,
         metadata_service=MetadataService(llm),
         thumbnail_generator=PILThumbnailGenerator(settings, llm, get_image_provider()),
+        research_service=get_research_service(),
     )
 
 
