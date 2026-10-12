@@ -69,9 +69,11 @@ class ContentOrchestrator:
         if request.is_short:
             logger.info("Content type: SHORT reel (~%ds)", request.target_seconds)
 
-        # 0) Optional web research to ground the script in real facts.
+        # 0) Optional web research to ground the script in real facts (skipped
+        #    when the caller supplies their own script).
         brief = ResearchBrief()
-        if self._settings.web_enrich and self._research is not None:
+        custom_script = (request.script or "").strip()
+        if not custom_script and self._settings.web_enrich and self._research is not None:
             try:
                 brief = await self._research.research(request.topic)
             except Exception as exc:  # noqa: BLE001 - enrichment is optional
@@ -79,16 +81,20 @@ class ContentOrchestrator:
                 warnings.append(f"Web enrichment failed: {exc}")
 
         # 1) Script (required foundation for the rest of the run).
-        script = await self._scripts.generate(
-            request.topic,
-            content_type=request.content_type,
-            tone=request.tone,
-            audience=request.audience,
-            target_minutes=request.target_minutes,
-            target_seconds=request.target_seconds,
-            language=request.language,
-            research=brief.as_prompt_block(),
-        )
+        if custom_script:
+            logger.info("Using user-provided script (%d chars); skipping generation.", len(custom_script))
+            script = custom_script
+        else:
+            script = await self._scripts.generate(
+                request.topic,
+                content_type=request.content_type,
+                tone=request.tone,
+                audience=request.audience,
+                target_minutes=request.target_minutes,
+                target_seconds=request.target_seconds,
+                language=request.language,
+                research=brief.as_prompt_block(),
+            )
         script_path = write_text(project_dir / "script.txt", script)
         if brief.sources:
             write_json(

@@ -109,9 +109,11 @@ class VideoOrchestrator:
         logger.info("Topic technical=%s for '%s'", info.technical, request.topic)
 
         # 0b) Optional web research: grounds the script + on-screen facts in REAL
-        #     information and provides real image subjects. Best-effort.
+        #     information and provides real image subjects. Best-effort. Skipped
+        #     when the caller supplies their own script.
         brief = ResearchBrief()
-        if self._settings.web_enrich and self._research is not None:
+        custom_script = (request.script or "").strip()
+        if not custom_script and self._settings.web_enrich and self._research is not None:
             try:
                 brief = await self._research.research(request.topic)
             except Exception as exc:  # noqa: BLE001 - enrichment is optional
@@ -120,17 +122,21 @@ class VideoOrchestrator:
         research_block = brief.as_prompt_block()
 
         # 1) Script + storyboard -------------------------------------------------
-        script = await self._scripts.generate(
-            request.topic,
-            content_type=request.content_type,
-            tone=request.tone,
-            audience=request.audience,
-            target_minutes=request.target_minutes,
-            target_seconds=request.target_seconds,
-            language=request.language,
-            technical=info.technical,
-            research=research_block,
-        )
+        if custom_script:
+            logger.info("Using user-provided script (%d chars); skipping generation.", len(custom_script))
+            script = custom_script
+        else:
+            script = await self._scripts.generate(
+                request.topic,
+                content_type=request.content_type,
+                tone=request.tone,
+                audience=request.audience,
+                target_minutes=request.target_minutes,
+                target_seconds=request.target_seconds,
+                language=request.language,
+                technical=info.technical,
+                research=research_block,
+            )
         script_path = write_text(project_dir / "script.txt", script)
 
         storyboard = await self._storyboards.generate(

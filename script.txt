@@ -1,0 +1,17 @@
+Have you ever wondered how ChatGPT generates answers, AI creates images, or tools generate videos from just a text prompt?
+
+The technology behind all this is called Generative AI, or GenAI.
+
+Generative AI is a type of Artificial Intelligence that can create new content, such as text, images, videos, audio, and even code.
+
+But how does it actually work?
+
+AI models learn patterns from large amounts of training data. When you provide a prompt, they use those learned patterns to generate new content.
+
+For example, ChatGPT generates text one token at a time, while image generation models can create pictures from text descriptions.
+
+ChatGPT, AI image generators, video generators, and coding assistants are all examples of Generative AI.
+
+And the best part? You can build your own GenAI applications using JavaScript, Python, and open-source models like Ollama.
+
+Follow for more practical AI and coding tutorials!

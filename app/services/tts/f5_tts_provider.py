@@ -52,6 +52,8 @@ class F5TTSProvider(TTSProvider):
         self._target_rms = settings.f5_target_rms
         self._peak = settings.f5_peak
         self._remove_silence = settings.f5_remove_silence
+        self._sentence_pause = settings.f5_sentence_pause
+        self._paragraph_pause = settings.f5_paragraph_pause
         self._seed = settings.f5_seed
         self._model = None  # lazily loaded F5TTS instance (expensive)
 
@@ -121,23 +123,40 @@ class F5TTSProvider(TTSProvider):
             if self._seed is not None and 0 <= int(self._seed) <= _MAX_SEED
             else random.randint(0, _MAX_SEED)
         )
+        segments = _split_sentences(text)
         logger.info(
-            "Synthesizing with F5-TTS (ref=%s, device=%s, speed=%s, target_rms=%s)",
-            Path(ref_file).name, self._device, speed, self._target_rms,
+            "Synthesizing with F5-TTS (ref=%s, device=%s, speed=%s, %d sentence(s), pauses=%.2f/%.2fs)",
+            Path(ref_file).name, self._device, speed, len(segments),
+            self._sentence_pause, self._paragraph_pause,
         )
 
         def _infer() -> None:
+            import numpy as np
+            import soundfile as sf
+
             model = self._load_model()
-            model.infer(
-                ref_file=ref_file,
-                ref_text=self._ref_text,  # "" -> F5 auto-transcribes the clip
-                gen_text=text,            # long text is chunked internally by F5
-                file_wave=str(wav_path),
-                remove_silence=self._remove_silence,
-                target_rms=self._target_rms,
-                speed=speed,
-                seed=seed,
-            )
+            sr = int(getattr(model, "target_sample_rate", 24000))
+            sentence_gap = np.zeros(int(sr * max(self._sentence_pause, 0.0)), dtype=np.float32)
+            paragraph_gap = np.zeros(int(sr * max(self._paragraph_pause, 0.0)), dtype=np.float32)
+
+            pieces: list = []
+            for i, (sentence, para_break) in enumerate(segments):
+                wav, _sr, _ = model.infer(
+                    ref_file=ref_file,
+                    ref_text=self._ref_text,  # "" -> transcribed once, then cached
+                    gen_text=sentence,
+                    remove_silence=self._remove_silence,
+                    target_rms=self._target_rms,
+                    speed=speed,
+                    seed=seed,
+                )
+                pieces.append(np.asarray(wav, dtype=np.float32))
+                # Human pause after each sentence (longer breath at paragraph breaks).
+                if i < len(segments) - 1:
+                    pieces.append(paragraph_gap if para_break else sentence_gap)
+
+            final = np.concatenate(pieces) if pieces else np.zeros(1, dtype=np.float32)
+            sf.write(str(wav_path), final, sr)
 
         try:
             await asyncio.to_thread(_infer)
@@ -185,6 +204,38 @@ class F5TTSProvider(TTSProvider):
                 "friendly": f"F5-TTS cloned voice from {Path(ref).name if self._ref_audio else ref}",
             }
         ]
+
+
+def _split_sentences(text: str) -> list[tuple[str, bool]]:
+    """Split narration into sentences, flagging paragraph breaks.
+
+    Returns a list of ``(sentence, is_paragraph_end)``. A sentence followed by a
+    blank line (paragraph break) is marked so the synthesizer inserts a longer
+    "breath" pause there. Falls back to the whole text as one segment.
+    """
+    import re
+
+    text = (text or "").strip()
+    if not text:
+        return []
+
+    # Mark paragraph breaks, then split into sentences on terminal punctuation.
+    paragraphs = re.split(r"\n\s*\n", text)
+    segments: list[tuple[str, bool]] = []
+    for p, para in enumerate(paragraphs):
+        para = para.replace("\n", " ").strip()
+        if not para:
+            continue
+        sentences = re.findall(r"[^.!?]+(?:[.!?]+|$)", para)
+        sentences = [s.strip() for s in sentences if s.strip()]
+        if not sentences:
+            sentences = [para]
+        for i, sent in enumerate(sentences):
+            is_last_in_para = i == len(sentences) - 1
+            is_last_para = p == len(paragraphs) - 1
+            # Paragraph-length breath only between paragraphs (not at the very end).
+            segments.append((sent, is_last_in_para and not is_last_para))
+    return segments or [(text, False)]
 
 
 def _boost_loudness(wav_path: Path, peak: float) -> None:

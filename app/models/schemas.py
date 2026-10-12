@@ -11,6 +11,11 @@ class GenerateRequest(BaseModel):
     """Input for a full content-generation run."""
 
     topic: str = Field(..., min_length=3, description="The video topic or idea.")
+    # Optional ready-made narration: when set, it's used VERBATIM and the LLM
+    # script-generation (and research grounding of the script) is skipped.
+    script: str | None = Field(
+        default=None, description="Your own narration script; used as-is if provided."
+    )
     # "long" = standard YouTube video; "short" = vertical Reel / YouTube Short.
     content_type: Literal["long", "short"] = Field(
         default="long", description="'long' video or 'short' reel."
@@ -106,6 +111,12 @@ class VideoRequest(BaseModel):
     """Input for a full video (Short/Reel or long-form) generation run."""
 
     topic: str = Field(..., min_length=3, description="The video topic or idea.")
+    # Optional ready-made narration: when set, it's used VERBATIM and the LLM
+    # script-generation (and research grounding of the script) is skipped. The
+    # topic is still used for classification, metadata, images, and the folder name.
+    script: str | None = Field(
+        default=None, description="Your own narration script; used as-is if provided."
+    )
     content_type: Literal["long", "short"] = Field(
         default="short", description="'short' reel (portrait) or 'long' video (landscape)."
     )

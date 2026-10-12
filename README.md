@@ -303,3 +303,9 @@ python cli.py "What is Docker?" --video --minutes 2
 
 # Optional: force orientation / pick a style
 python cli.py "Kubernetes basics" --video --orientation landscape --style educational
+
+# from a file (best for long/multi-line scripts)
+.venv/bin/python cli.py "LLMs explained" --video --reel --script my_script.txt
+
+# or inline
+.venv/bin/python cli.py "LLMs explained" --video --reel --script "Stop picturing it as a brain..."

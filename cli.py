@@ -12,6 +12,11 @@ burned-in karaoke subtitles, animated visuals, and SFX:
     python cli.py "How closures work in JavaScript" --video --reel --seconds 40
     python cli.py "What is Docker?" --video --minutes 2            # landscape 1920x1080
 
+Bring YOUR OWN script (skips generation, builds everything from your text):
+
+    python cli.py "LLMs explained" --video --reel --script my_script.txt
+    python cli.py "LLMs explained" --video --reel --script "Stop picturing it as a brain..."
+
 Useful for scripting and for running the agent from Kiro tasks.
 """
 
@@ -19,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from pathlib import Path
 
 # Ensure we're running under the project's virtualenv (re-execs if needed)
 # BEFORE importing anything that depends on third-party packages.
@@ -54,6 +60,12 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--style", default="modern-tech", help="Video visual style preset.")
     parser.add_argument("--minutes", type=int, default=5, help="Target length for long videos (1-30).")
     parser.add_argument("--seconds", type=int, default=40, help="Target length for reels (10-180).")
+    parser.add_argument(
+        "--script",
+        default=None,
+        help="Use YOUR narration script instead of generating one. Pass a file "
+        "path (e.g. my_script.txt) or the script text directly.",
+    )
     parser.add_argument("--tone", default="engaging and friendly", help="Narration tone.")
     parser.add_argument("--audience", default="a general YouTube audience", help="Target audience.")
     parser.add_argument("--language", default="English", help="Output language.")
@@ -63,10 +75,24 @@ def _parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _load_script(value: str | None) -> str | None:
+    """Resolve --script: a file path is read; otherwise treat it as literal text."""
+    if not value:
+        return None
+    path = Path(value).expanduser()
+    try:
+        if path.is_file():
+            return path.read_text(encoding="utf-8").strip()
+    except OSError:
+        pass
+    return value.strip()
+
+
 async def _run_video(args: argparse.Namespace) -> None:
     """Run the full video pipeline (also produces metadata + thumbnail)."""
     request = VideoRequest(
         topic=args.topic,
+        script=_load_script(args.script),
         content_type="short" if args.reel else "long",
         orientation=args.orientation,
         tone=args.tone,
@@ -103,6 +129,7 @@ async def _run_package(args: argparse.Namespace) -> None:
     """Run the content package pipeline (no video render)."""
     request = GenerateRequest(
         topic=args.topic,
+        script=_load_script(args.script),
         content_type="short" if args.reel else "long",
         tone=args.tone,
         audience=args.audience,

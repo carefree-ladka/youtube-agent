@@ -69,16 +69,23 @@ class Settings(BaseSettings):
     f5_model: str = Field(default="F5TTS_v1_Base")
     # Device for F5 inference: "auto" (cuda>mps>cpu), or force "mps"/"cuda"/"cpu".
     f5_device: str = Field(default="auto")
-    # Playback speed: long-form uses f5_speed, shorts/reels use f5_speed_short
-    # (slightly faster for snappier pacing).
-    f5_speed: float = Field(default=1.0)
-    f5_speed_short: float = Field(default=1.15)
+    # Playback speed: long-form uses f5_speed, shorts/reels use f5_speed_short.
+    # Below 1.0 = slower, more deliberate/human delivery (not rushed).
+    f5_speed: float = Field(default=0.9)
+    f5_speed_short: float = Field(default=0.95)
+    # Human pacing: synthesize sentence-by-sentence and insert a short pause
+    # between sentences (and a longer "breath" at paragraph breaks) so narration
+    # isn't a flat, run-on read. Seconds; set both to 0 to disable per-sentence.
+    f5_sentence_pause: float = Field(default=0.33)
+    f5_paragraph_pause: float = Field(default=0.6)
     # Loudness: F5's internal RMS normalization target (higher = louder) plus a
     # final peak-normalization of the output WAV (0..1; 0 disables) so cloned
     # narration isn't quiet.
     f5_target_rms: float = Field(default=0.18)
     f5_peak: float = Field(default=0.98)
-    f5_remove_silence: bool = Field(default=True)
+    # Keep F5's natural within-sentence silences (do NOT trim) so it sounds like
+    # a person pausing, not a continuous read.
+    f5_remove_silence: bool = Field(default=False)
     # Fixed random seed for reproducible voices (-1 = random each run).
     f5_seed: int = Field(default=-1)
 
