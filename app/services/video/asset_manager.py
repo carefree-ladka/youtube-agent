@@ -53,6 +53,10 @@ class AssetManager:
             for element in scene.elements:
                 if element.type != "image":
                     continue
+                # Already staged (e.g. a user-supplied external scene image):
+                # leave it untouched so we never overwrite bring-your-own visuals.
+                if element.src:
+                    continue
                 index += 1
                 filename = f"asset_{index:02d}.png"
                 path = assets_dir / filename

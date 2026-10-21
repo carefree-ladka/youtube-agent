@@ -133,6 +133,25 @@ class VideoRequest(BaseModel):
     generate_metadata: bool = Field(default=True)
     generate_thumbnails: bool = Field(default=True)
 
+    # ---- External scene images (bring your own visuals) ----
+    # Folder of pre-made full-scene images (png/jpg/jpeg/webp/gif). When set (or
+    # when VIDEO_SCENES_DIR is configured), the agent SKIPS its own storyboard +
+    # asset generation and uses these as the scenes - one full-bleed image per
+    # scene, in natural filename order or a manifest.json. Export them at the
+    # target resolution (portrait 1080x1920 / landscape 1920x1080) for best fit.
+    scene_images_dir: str | None = Field(
+        default=None, description="Folder of your own scene images; overrides generated scenes."
+    )
+    # How external images fill the frame: "cover" (fill, may crop) or "contain"
+    # (letterbox, never crops).
+    scene_fit: Literal["cover", "contain"] = Field(default="cover")
+    # Apply a gentle Ken Burns + camera drift to external stills so they feel
+    # alive. Set false to keep them perfectly static.
+    scene_motion: bool = Field(default=True)
+    # Burn karaoke subtitles over the video. Turn off if your external scenes
+    # already have baked-in captions.
+    burn_subtitles: bool = Field(default=True)
+
     @property
     def is_short(self) -> bool:
         return self.content_type == "short"

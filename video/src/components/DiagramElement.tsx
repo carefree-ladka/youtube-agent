@@ -1,7 +1,7 @@
 import React from "react";
 import { useCurrentFrame, useVideoConfig } from "remotion";
 import type { VideoElement, VideoStyle } from "../types";
-import { popIn } from "./anim";
+import { elementMotion } from "./anim";
 
 interface DiagramData {
   kind?: string;
@@ -10,9 +10,10 @@ interface DiagramData {
 
 /** A simple, generic concept diagram: a flow or list of labeled nodes.
  * Nodes animate in one after another. No topic-specific knowledge. */
-export const DiagramElement: React.FC<{ element: VideoElement; style: VideoStyle }> = ({
+export const DiagramElement: React.FC<{ element: VideoElement; style: VideoStyle; index?: number }> = ({
   element,
   style,
+  index = 0,
 }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
@@ -39,13 +40,15 @@ export const DiagramElement: React.FC<{ element: VideoElement; style: VideoStyle
       }}
     >
       {nodes.map((label, i) => {
-        const anim = popIn(frame, fps, 0.2 + i * 0.25);
+        const anim = elementMotion(element, frame, fps, 0.2 + index * 0.1 + i * 0.25, width, "pop");
         return (
           <React.Fragment key={i}>
             <div
               style={{
                 transform: anim.transform,
                 opacity: anim.opacity,
+                clipPath: anim.clipPath,
+                filter: anim.filter,
                 background: "rgba(255,255,255,0.08)",
                 border: `${Math.round(base * 0.006)}px solid ${accent}`,
                 borderRadius: base * 0.025,

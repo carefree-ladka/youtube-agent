@@ -131,9 +131,11 @@ class Settings(BaseSettings):
     brand_secondary_color: str = Field(default="#111827")
     brand_text_color: str = Field(default="#FFFFFF")
 
-    # ---------- Image generation (thumbnail backgrounds) ----------
+    # ---------- Image generation (thumbnail backgrounds + video scenes) ----------
     # Backend: "none" (designed PIL background), "ollama" (Ollama image model),
-    # "diffusers" (local HF diffusers), or "comfyui" (a running ComfyUI server).
+    # "diffusers" (local HF diffusers), "comfyui" (a running ComfyUI server),
+    # "web" (license-aware photo search), or "gemini" (Google "Nano Banana"
+    # image models via the Gemini API - needs GEMINI_API_KEY).
     image_backend: str = Field(default="none")
     # Any diffusers-compatible text-to-image model on Hugging Face.
     # Mac-friendly defaults: "stabilityai/sdxl-turbo" (fast, good quality) or
@@ -149,6 +151,22 @@ class Settings(BaseSettings):
     diffusers_size: int = Field(default=1024)
     # Darkness (0-255) of the scrim drawn over the AI image so text stays legible.
     thumbnail_overlay_opacity: int = Field(default=110)
+
+    # ---------- Gemini image backend (used when IMAGE_BACKEND=gemini) ----------
+    # Google "Nano Banana" image generation via the Gemini API. Get a key at
+    # https://aistudio.google.com/apikey (the API has its own free tier + billing;
+    # a consumer Gemini app / Google AI Pro subscription does NOT grant API access).
+    gemini_api_key: str = Field(default="")
+    # Model id. Options (newest first): "gemini-3-pro-image" (Nano Banana Pro,
+    # best quality), "gemini-3.1-flash-image" (Nano Banana 2), "gemini-2.5-flash-
+    # image" (legacy, cheap/stable). Default favors quality for a Pro key.
+    gemini_image_model: str = Field(default="gemini-3-pro-image")
+    gemini_base_url: str = Field(default="https://generativelanguage.googleapis.com/v1beta")
+    # Preferred output size hint sent to the model: "1K" | "2K" | "4K" (newer
+    # models honor it; the result is always cover-cropped to the exact frame).
+    gemini_image_size: str = Field(default="2K")
+    # Image generation can take a while, especially at 2K/4K.
+    gemini_image_timeout: float = Field(default=120.0)
 
     # ---------- ComfyUI backend (used when IMAGE_BACKEND=comfyui) ----------
     # Base URL of a running ComfyUI server (Docker or native).
@@ -195,6 +213,13 @@ class Settings(BaseSettings):
     # Max seconds to wait for a single SVG to be authored before falling back to
     # the designed SVG (keeps slow/large models from stalling the whole render).
     video_svg_timeout: float = Field(default=90.0)
+
+    # Optional folder of pre-made SCENE IMAGES (png/jpg/webp/gif) designed in an
+    # external tool. When set (or passed per-request), the pipeline SKIPS its own
+    # storyboard + asset generation and uses these images as the scenes - one
+    # full-bleed image per scene, in natural filename order (or a manifest.json),
+    # retimed to the narration. Empty = generate scenes normally.
+    video_scenes_dir: str = Field(default="")
 
     @property
     def output_path(self) -> Path:

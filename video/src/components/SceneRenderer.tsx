@@ -12,7 +12,7 @@ import { StatElement } from "./StatElement";
 import { SvgElement } from "./SvgElement";
 import { TextElement } from "./TextElement";
 import { VideoElement as VideoAsset } from "./VideoElement";
-import { sceneEntrance } from "./anim";
+import { cameraTransform, sceneEntrance } from "./anim";
 
 const isBackground = (t: string) => t === "image" || t === "video" || t === "svg";
 const isDecoration = (t: string) => t === "shape";
@@ -47,22 +47,26 @@ export const SceneRenderer: React.FC<{ scene: VideoScene; style: VideoStyle }> =
       case "text":
         return <TextElement key={index} element={element} style={style} index={index} />;
       case "code":
-        return <CodeElement key={index} element={element} style={style} />;
+        return <CodeElement key={index} element={element} style={style} index={index} />;
       case "diagram":
-        return <DiagramElement key={index} element={element} style={style} />;
+        return <DiagramElement key={index} element={element} style={style} index={index} />;
       case "bullets":
-        return <BulletsElement key={index} element={element} style={style} />;
+        return <BulletsElement key={index} element={element} style={style} index={index} />;
       case "stat":
-        return <StatElement key={index} element={element} style={style} />;
+        return <StatElement key={index} element={element} style={style} index={index} />;
       case "quote":
-        return <QuoteElement key={index} element={element} style={style} />;
+        return <QuoteElement key={index} element={element} style={style} index={index} />;
       default:
         return null;
     }
   };
 
+  // Slow, scene-level camera move applied to the whole scene (background +
+  // foreground move together). Falls back to "none" for older storyboards.
+  const camera = cameraTransform(scene.camera, frame, sceneDurationFrames, width);
+
   return (
-    <AbsoluteFill>
+    <AbsoluteFill style={{ transform: camera === "none" ? undefined : camera }}>
       {/* Background layer */}
       {hasBackgroundMedia ? null : <Background style={style} />}
       {bgMedia.map((el, i) => {

@@ -1,17 +1,19 @@
 import React from "react";
-import {interpolate, useCurrentFrame, useVideoConfig} from "remotion";
-import type {VideoElement, VideoStyle} from "../types";
-import {popIn} from "./anim";
+import { useCurrentFrame, useVideoConfig } from "remotion";
+import type { VideoElement, VideoStyle } from "../types";
+import { countUpProgress, elementMotion, normalizeEnter } from "./anim";
 
-/** A big headline number/metric with a label. Pure integers count up. In-flow. */
-export const StatElement: React.FC<{element: VideoElement; style: VideoStyle}> = ({
+/** A big headline number/metric with a label. Numbers count up. In-flow. */
+export const StatElement: React.FC<{ element: VideoElement; style: VideoStyle; index?: number }> = ({
   element,
   style,
+  index = 0,
 }) => {
   const frame = useCurrentFrame();
-  const {fps, width, height} = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
   const base = Math.min(width, height);
-  const anim = popIn(frame, fps, 0.1);
+  const delay = 0.1 + index * 0.12;
+  const anim = elementMotion(element, frame, fps, delay, width, "count-up");
 
   const value = String(element.content ?? "").trim();
   const label =
@@ -20,19 +22,30 @@ export const StatElement: React.FC<{element: VideoElement; style: VideoStyle}> =
       : ((element.style?.label as string) ?? "");
   if (!value) return null;
 
-  // Count up when the value is a plain integer.
+  // Count up when the LLM asked for it, or whenever the value LEADS with a
+  // number (e.g. "100x", "40%", "3"). The numeric prefix animates; any
+  // suffix/prefix (x, %, $, O(…)) stays put.
   let display = value;
-  if (/^\d+$/.test(value)) {
-    const target = parseInt(value, 10);
-    const p = interpolate(frame, [0, Math.round(fps * 0.8)], [0, 1], {
-      extrapolateLeft: "clamp",
-      extrapolateRight: "clamp",
-    });
-    display = String(Math.round(target * p));
+  const wantsCountUp = normalizeEnter(element.animation, "count-up") === "count-up";
+  const m = value.match(/^(\D*)(\d[\d,]*)(.*)$/s);
+  if (wantsCountUp && m) {
+    const [, pre, digits, post] = m;
+    const target = parseInt(digits.replace(/,/g, ""), 10);
+    const p = countUpProgress(frame, fps, delay, 0.9);
+    const current = Math.round(target * p);
+    display = `${pre}${current.toLocaleString()}${post}`;
   }
 
   return (
-    <div style={{textAlign: "center", transform: anim.transform, opacity: anim.opacity}}>
+    <div
+      style={{
+        textAlign: "center",
+        transform: anim.transform,
+        opacity: anim.opacity,
+        clipPath: anim.clipPath,
+        filter: anim.filter,
+      }}
+    >
       <div
         style={{
           color: style.accentColor,

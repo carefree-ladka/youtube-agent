@@ -530,9 +530,12 @@ STORYBOARD_SYSTEM = (
     "You are a short-form video director and motion designer. You turn a "
     "narration script into a GENERIC visual storyboard: a timeline of scenes, "
     "each with a few on-screen visual elements that ADD to what the voice says "
-    "rather than repeat it. You never assume a specific rendering technology and "
-    "you only use these element types: text, svg, image, code, diagram, shape, "
-    "bullets, stat, quote. You always respond with valid JSON only."
+    "rather than repeat it. You direct MOTION deliberately - every scene has a "
+    "camera move and every element has an entrance animation chosen to fit the "
+    "moment - so the final video feels alive and professionally animated, never "
+    "a stack of static slides. You never assume a specific rendering technology "
+    "and you only use these element types: text, svg, image, code, diagram, "
+    "shape, bullets, stat, quote. You always respond with valid JSON only."
 )
 
 
@@ -619,9 +622,10 @@ Return ONLY a JSON object with EXACTLY this shape:
       "id": "scene-1",
       "duration": 4,
       "transition": "slide",
+      "camera": "push-in",
       "elements": [
-        {{ "type": "text", "content": "SHORT on-screen phrase (2-6 words)", "style": {{ "role": "headline" }} }},
-        {{ "type": "image", "image_prompt": "detailed, literal description of a relevant background image - NO text in the image" }}
+        {{ "type": "text", "content": "SHORT on-screen phrase (2-6 words)", "animation": "pop", "emphasis": "none", "style": {{ "role": "headline" }} }},
+        {{ "type": "image", "image_prompt": "detailed, literal description of a relevant background image - NO text in the image", "animation": "fade" }}
       ]
     }}
   ]
@@ -651,6 +655,33 @@ ELEMENT TYPES you may use (choose what fits the moment):
 
 TRANSITIONS: "transition" is one of "slide", "fade", or "zoom". Vary them, but
 keep it tasteful.
+
+MOTION (make it feel ALIVE and deliberately animated - choose motion that fits
+each moment; do not leave everything static):
+- Per SCENE, set "camera" to a slow cinematic move: one of "push-in" (drift in,
+  great for a reveal or key point), "pull-back" (open up / show context),
+  "pan-left", "pan-right", or "none". Favor gentle camera moves over "none" so
+  the frame is never dead, but keep ~1 in 4 scenes calm so it doesn't feel busy.
+- Per ELEMENT, set "animation" (how it ENTERS) to the one that fits:
+    "pop"         - punchy scale-in; good for a headline or a shape.
+    "rise"        - slides up from below; good for bullets or a sub-point.
+    "slide-left"  - enters from the left; good for a quote or supporting text.
+    "slide-right" - enters from the right; alternate with slide-left.
+    "zoom-in"     - dramatic scale-in; use for the HOOK or a big reveal.
+    "reveal"      - a clean bottom-to-top wipe; elegant for a quote/takeaway.
+    "typewriter"  - types out character by character; USE THIS for "code" (and
+                    optionally for a short punchy "quote"/"text").
+    "count-up"    - counts up to the number; ALWAYS use for a numeric "stat".
+    "fade"        - plain fade; use for background "image"/"svg" and when a
+                    subtle entrance is best.
+- Per ELEMENT, optionally set "emphasis" for continuous life AFTER it enters:
+    "pulse" (subtle heartbeat - good for a stat or key word), "float" (gentle
+    bob - good for an icon/illustration), "glow" (soft glow - a key takeaway),
+    or "none" (default). Use emphasis sparingly - at most one emphasized element
+    per scene - so it stays classy, not gimmicky.
+- Match motion to content: numbers count-up, code typewriters, the hook zooms in,
+  takeaways reveal, lists rise. Vary entrances across adjacent scenes so two
+  scenes in a row don't animate identically.
 
 SCENE COUNT (IMPORTANT - keep it dense and fast-moving):
 - Produce BETWEEN {min_scenes} AND {max_scenes} scenes. Fewer than {min_scenes}

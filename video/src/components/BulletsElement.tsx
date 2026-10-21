@@ -1,15 +1,16 @@
 import React from "react";
-import {useCurrentFrame, useVideoConfig} from "remotion";
-import type {VideoElement, VideoStyle} from "../types";
-import {popIn} from "./anim";
+import { useCurrentFrame, useVideoConfig } from "remotion";
+import type { VideoElement, VideoStyle } from "../types";
+import { elementMotion } from "./anim";
 
 /** An animated bullet list (2-4 short points) that staggers in. In-flow. */
-export const BulletsElement: React.FC<{element: VideoElement; style: VideoStyle}> = ({
+export const BulletsElement: React.FC<{ element: VideoElement; style: VideoStyle; index?: number }> = ({
   element,
   style,
+  index = 0,
 }) => {
   const frame = useCurrentFrame();
-  const {fps, width, height} = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
   const base = Math.min(width, height);
 
   let items: string[] = [];
@@ -25,9 +26,9 @@ export const BulletsElement: React.FC<{element: VideoElement; style: VideoStyle}
   if (items.length === 0) return null;
 
   return (
-    <div style={{width: "100%", display: "flex", flexDirection: "column", gap: base * 0.032}}>
+    <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: base * 0.032 }}>
       {items.map((item, i) => {
-        const a = popIn(frame, fps, 0.15 + i * 0.22);
+        const a = elementMotion(element, frame, fps, 0.15 + index * 0.1 + i * 0.22, width, "rise");
         return (
           <div
             key={i}
@@ -37,6 +38,8 @@ export const BulletsElement: React.FC<{element: VideoElement; style: VideoStyle}
               gap: base * 0.028,
               transform: a.transform,
               opacity: a.opacity,
+              clipPath: a.clipPath,
+              filter: a.filter,
             }}
           >
             <span

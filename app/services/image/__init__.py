@@ -40,6 +40,11 @@ def build_image_provider(settings: Settings) -> ImageProvider | None:
 
         return WebImageProvider(settings)
 
+    if backend == "gemini":
+        from app.services.image.gemini_provider import GeminiImageProvider
+
+        return GeminiImageProvider(settings)
+
     logger.warning("Unknown IMAGE_BACKEND '%s'; falling back to gradient.", backend)
     return None
 

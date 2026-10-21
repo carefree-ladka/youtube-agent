@@ -63,6 +63,14 @@ class VideoElement(BaseModel):
     svg: str | None = None
     # Prompt used to generate an image asset for this element (image/svg types).
     image_prompt: str | None = None
+    # Motion hints chosen by the storyboard LLM, interpreted by the Remotion
+    # renderer (video/src/components/anim.ts). Both are optional; the renderer
+    # falls back to a type-appropriate default when they are None.
+    #   animation (entrance): "pop" | "rise" | "slide-left" | "slide-right" |
+    #       "zoom-in" | "fade" | "reveal" | "typewriter" | "count-up" | "none"
+    animation: str | None = None
+    #   emphasis (continuous): "none" | "pulse" | "float" | "glow"
+    emphasis: str | None = None
     # Free-form per-element style hints (role: "title"|"headline"|"caption", etc.)
     style: dict[str, Any] = Field(default_factory=dict)
 
@@ -75,6 +83,9 @@ class VideoScene(BaseModel):
     duration: float = 3.0
     # Transition used when entering this scene (visual + optional SFX cue).
     transition: str = "fade"
+    # Slow scene-level camera move interpreted by the renderer:
+    #   "none" | "push-in" | "pull-back" | "pan-left" | "pan-right"
+    camera: str | None = None
     elements: list[VideoElement] = Field(default_factory=list)
 
 

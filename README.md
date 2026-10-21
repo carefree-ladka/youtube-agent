@@ -224,6 +224,36 @@ curl localhost:8000/videos/<jobId>
 - Scene backgrounds use your configured `IMAGE_BACKEND`; if none/unreachable,
   a designed gradient+shape background is generated so videos always render.
 
+### 🖼️ Bring your own scenes (external images)
+Prefer to design scenes yourself (Gemini, Midjourney, Canva, Figma, exported
+slides…)? Drop the images in a folder and the agent uses them as the scenes,
+skipping its own storyboard + asset generation. It still writes the narration,
+times everything to the audio, adds SFX, and (optionally) burns in subtitles.
+
+```bash
+curl -X POST localhost:8000/videos/generate \
+  -H 'Content-Type: application/json' \
+  -d '{
+        "topic": "How compound interest works",
+        "content_type": "short",
+        "scene_images_dir": "./my_scenes",
+        "scene_fit": "cover",
+        "scene_motion": true,
+        "burn_subtitles": false
+      }'
+```
+
+- Images are used in **natural filename order** (`scene-1.png`, `scene-2.webp`,
+  …). Supported: `png`, `jpg`, `jpeg`, `webp`, `gif`.
+- Add an optional `manifest.json` in the folder for explicit order + per-scene
+  timing/motion: `{"scenes":[{"file":"intro.png","duration":4,"transition":"fade","camera":"push-in"}, …]}`.
+- `scene_fit`: `cover` (fill, may crop) or `contain` (letterbox with a blurred
+  backdrop, never crops). Export at the frame size (portrait 1080×1920 /
+  landscape 1920×1080) for the cleanest `cover` result.
+- `scene_motion`: gentle Ken Burns + camera drift (`true`) or perfectly static
+  (`false`). `burn_subtitles`: turn `false` if your images already have captions.
+- Set a default folder for every run with `VIDEO_SCENES_DIR` in `.env`.
+
 ## 🔌 API endpoints
 | Method | Path | Description |
 |---|---|---|

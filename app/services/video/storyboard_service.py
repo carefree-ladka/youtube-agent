@@ -28,6 +28,28 @@ _VALID_TYPES = {
     "text", "image", "video", "code", "diagram", "shape", "bullets", "stat", "quote", "svg"
 }
 _VALID_TRANSITIONS = {"fade", "slide", "zoom", "none"}
+_VALID_ANIMATIONS = {
+    "pop", "rise", "slide-left", "slide-right", "zoom-in", "fade", "reveal",
+    "typewriter", "count-up", "none",
+}
+_VALID_EMPHASIS = {"none", "pulse", "float", "glow"}
+_VALID_CAMERAS = {"none", "push-in", "pull-back", "pan-left", "pan-right"}
+
+# Type-appropriate entrance default when the model omits/garbles the hint. The
+# renderer applies the same philosophy, but defaulting here keeps the written
+# storyboard JSON self-describing and easy to debug.
+_DEFAULT_ANIMATION: dict[str, str] = {
+    "stat": "count-up",
+    "code": "typewriter",
+    "bullets": "rise",
+    "quote": "slide-left",
+    "diagram": "pop",
+    "text": "pop",
+    "image": "fade",
+    "svg": "fade",
+    "video": "fade",
+    "shape": "fade",
+}
 
 
 class StoryboardService:
@@ -131,11 +153,15 @@ class StoryboardService:
             transition = str(raw.get("transition", "slide")).lower()
             if transition not in _VALID_TRANSITIONS:
                 transition = "slide"
+            camera = str(raw.get("camera", "none")).lower()
+            if camera not in _VALID_CAMERAS:
+                camera = "none"
             scenes.append(
                 VideoScene(
                     id=str(raw.get("id") or f"scene-{i + 1}"),
                     duration=duration,
                     transition=transition,
+                    camera=camera,
                     elements=elements,
                 )
             )
@@ -172,6 +198,12 @@ class StoryboardService:
                     continue  # at most two stacked foreground elements
                 flow_count += 1
             style = raw.get("style") if isinstance(raw.get("style"), dict) else {}
+            animation = str(raw.get("animation", "")).strip().lower()
+            if animation not in _VALID_ANIMATIONS:
+                animation = _DEFAULT_ANIMATION.get(etype, "pop")
+            emphasis = str(raw.get("emphasis", "")).strip().lower()
+            if emphasis not in _VALID_EMPHASIS:
+                emphasis = "none"
             elements.append(
                 VideoElement(
                     type=etype,  # type: ignore[arg-type]
@@ -183,6 +215,8 @@ class StoryboardService:
                     shape=raw.get("shape"),
                     svg=raw.get("svg") if isinstance(raw.get("svg"), str) else None,
                     image_prompt=raw.get("image_prompt"),
+                    animation=animation,
+                    emphasis=emphasis,
                     style=style or {},
                 )
             )
@@ -200,6 +234,9 @@ class StoryboardService:
         n = max(1, min(len(sentences), max(2, round(target_seconds / 4))))
         per = max(1, len(sentences) // n)
         chunks = [" ".join(sentences[i : i + per]) for i in range(0, len(sentences), per)]
+        # Rotate entrances + cameras so even the no-LLM fallback has visual variety.
+        enters = ("pop", "rise", "slide-left", "slide-right", "zoom-in")
+        cameras = ("push-in", "pan-right", "pull-back", "pan-left")
         scenes: list[VideoScene] = []
         for i, chunk in enumerate(chunks):
             headline = _shorten(chunk, 6)
@@ -208,9 +245,13 @@ class StoryboardService:
                     id=f"scene-{i + 1}",
                     duration=4.0,
                     transition="slide",
+                    camera=cameras[i % len(cameras)],
                     elements=[
                         VideoElement(
-                            type="text", content=headline, style={"role": "headline"}
+                            type="text",
+                            content=headline,
+                            animation=enters[i % len(enters)],
+                            style={"role": "headline"},
                         ),
                         VideoElement(
                             type="shape", shape="blob", style={"role": "accent"}
@@ -247,6 +288,7 @@ class StoryboardService:
                     id=f"scene-{idx}",
                     duration=4.0,
                     transition="slide",
+                    camera="push-in" if k % 2 == 0 else "pan-right",
                     elements=self._densify_elements(sentence, treatment, number),
                 )
             )
@@ -258,23 +300,50 @@ class StoryboardService:
         if treatment == "bullets":
             points = _clauses(sentence)
             if len(points) >= 2:
-                return [VideoElement(type="bullets", data=points, style={"role": "bullets"})]
+                return [
+                    VideoElement(
+                        type="bullets", data=points, animation="rise", style={"role": "bullets"}
+                    )
+                ]
             treatment = "quote"  # not enough clauses -> fall through
         if treatment == "stat" and number:
             label = _shorten(re.sub(re.escape(number), "", sentence).strip(" .,"), 4) or "key number"
             return [
-                VideoElement(type="stat", content=number, data=label, style={"role": "stat"}),
+                VideoElement(
+                    type="stat",
+                    content=number,
+                    data=label,
+                    animation="count-up",
+                    style={"role": "stat"},
+                ),
             ]
         if treatment == "quote":
-            return [VideoElement(type="quote", content=_shorten(sentence, 10), style={"role": "quote"})]
+            return [
+                VideoElement(
+                    type="quote",
+                    content=_shorten(sentence, 10),
+                    animation="slide-left",
+                    style={"role": "quote"},
+                )
+            ]
         if treatment == "shape":
             return [
-                VideoElement(type="text", content=_shorten(sentence, 6), style={"role": "headline"}),
+                VideoElement(
+                    type="text",
+                    content=_shorten(sentence, 6),
+                    animation="zoom-in",
+                    style={"role": "headline"},
+                ),
                 VideoElement(type="shape", shape="wave", style={"role": "accent"}),
             ]
         # headline (default)
         return [
-            VideoElement(type="text", content=_shorten(sentence, 6), style={"role": "headline"}),
+            VideoElement(
+                type="text",
+                content=_shorten(sentence, 6),
+                animation="pop",
+                style={"role": "headline"},
+            ),
             VideoElement(type="shape", shape="blob", style={"role": "accent"}),
         ]
 

@@ -1,7 +1,7 @@
 import React from "react";
 import { useCurrentFrame, useVideoConfig } from "remotion";
 import type { VideoElement, VideoStyle } from "../types";
-import { popIn } from "./anim";
+import { elementMotion, normalizeEnter, typewriterChars } from "./anim";
 
 type Role = "title" | "headline" | "caption" | "bullet";
 
@@ -19,7 +19,8 @@ export const TextElement: React.FC<{ element: VideoElement; style: VideoStyle; i
 }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
-  const anim = popIn(frame, fps, 0.1 + index * 0.12);
+  const delay = 0.1 + index * 0.12;
+  const anim = elementMotion(element, frame, fps, delay, width, "pop");
   const role = roleFor(element);
   const base = Math.min(width, height);
 
@@ -30,8 +31,18 @@ export const TextElement: React.FC<{ element: VideoElement; style: VideoStyle; i
     bullet: base * 0.048,
   };
 
-  const content = (element.content ?? "").toString();
-  if (!content) return null;
+  const full = (element.content ?? "").toString();
+  if (!full) return null;
+
+  // Typewriter reveal: show a growing substring with a blinking caret.
+  const isTypewriter = normalizeEnter(element.animation, "pop") === "typewriter";
+  let content = full;
+  let caret = false;
+  if (isTypewriter) {
+    const shown = typewriterChars(frame, fps, full.length, delay, 26);
+    content = full.slice(0, shown);
+    caret = shown < full.length && Math.floor((frame / fps) * 2) % 2 === 0;
+  }
 
   return (
     <div
@@ -40,6 +51,8 @@ export const TextElement: React.FC<{ element: VideoElement; style: VideoStyle; i
         textAlign: "center",
         transform: anim.transform,
         opacity: anim.opacity,
+        clipPath: anim.clipPath,
+        filter: anim.filter,
       }}
     >
       <span
@@ -59,6 +72,7 @@ export const TextElement: React.FC<{ element: VideoElement; style: VideoStyle; i
         }}
       >
         {content}
+        {caret ? <span style={{ color: style.accentColor }}>|</span> : null}
       </span>
     </div>
   );

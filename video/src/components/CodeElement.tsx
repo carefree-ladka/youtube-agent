@@ -1,7 +1,7 @@
 import React from "react";
 import { useCurrentFrame, useVideoConfig } from "remotion";
 import type { VideoElement, VideoStyle } from "../types";
-import { popIn } from "./anim";
+import { elementMotion, normalizeEnter, typewriterChars } from "./anim";
 
 // Minimal, language-agnostic token highlighting (keywords/strings/comments/
 // numbers). Generic by design - no per-language or per-topic rules.
@@ -63,23 +63,36 @@ const highlight = (line: string, accent: string): React.ReactNode => {
 };
 
 /** A clean, in-flow code card with light generic syntax highlighting. */
-export const CodeElement: React.FC<{ element: VideoElement; style: VideoStyle }> = ({
+export const CodeElement: React.FC<{ element: VideoElement; style: VideoStyle; index?: number }> = ({
   element,
   style,
+  index = 0,
 }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();
-  const anim = popIn(frame, fps, 0.15);
+  const delay = 0.15 + index * 0.12;
+  // The card itself fades in; the CODE types out (so the card doesn't scale
+  // while characters appear, which would look jittery).
+  const isTypewriter = normalizeEnter(element.animation, "typewriter") === "typewriter";
+  const anim = elementMotion(element, frame, fps, delay, width, "typewriter");
   const base = Math.min(width, height);
   const code = (element.code ?? element.content ?? "").toString().replace(/\r/g, "");
   if (!code) return null;
 
-  const lines = code.split("\n");
-  // Scale font down a bit when there are many/long lines so it always fits.
-  const longest = lines.reduce((a, l) => Math.max(a, l.length), 0);
+  // Layout off the FULL code so the card doesn't resize as it types.
+  const fullLines = code.split("\n");
+  const longest = fullLines.reduce((a, l) => Math.max(a, l.length), 0);
   let fontSize = base * 0.04;
-  if (lines.length > 7 || longest > 34) fontSize = base * 0.033;
-  if (lines.length > 11 || longest > 46) fontSize = base * 0.028;
+  if (fullLines.length > 7 || longest > 34) fontSize = base * 0.033;
+  if (fullLines.length > 11 || longest > 46) fontSize = base * 0.028;
+
+  // Reveal characters over time for the typewriter effect.
+  let shownCode = code;
+  if (isTypewriter) {
+    const shown = typewriterChars(frame, fps, code.length, delay + 0.15, 42);
+    shownCode = code.slice(0, shown);
+  }
+  const lines = shownCode.split("\n");
 
   return (
     <div
@@ -87,6 +100,8 @@ export const CodeElement: React.FC<{ element: VideoElement; style: VideoStyle }>
         width: "92%",
         transform: anim.transform,
         opacity: anim.opacity,
+        clipPath: anim.clipPath,
+        filter: anim.filter,
       }}
     >
       <div
@@ -130,6 +145,8 @@ export const CodeElement: React.FC<{ element: VideoElement; style: VideoStyle }>
             fontFamily: "'SFMono-Regular', Menlo, Consolas, monospace",
             whiteSpace: "pre-wrap",
             wordBreak: "break-word",
+            // Reserve the final height so typewriter reveal doesn't resize the card.
+            minHeight: fullLines.length * fontSize * 1.45,
           }}
         >
           {lines.map((line, i) => (

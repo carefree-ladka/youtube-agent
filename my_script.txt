@@ -1,0 +1,27 @@
+Want to become an AI engineer? Start with these five LLM fundamentals.
+
+First, what is an LLM?
+
+A Large Language Model learns patterns from massive amounts of text and uses them to generate responses.
+
+Second, tokens.
+
+LLMs process text as tokens, which can be words, parts of words, or punctuation.
+
+Third, embeddings.
+
+Embeddings convert text into numerical vectors that capture aspects of meaning. They're essential for semantic search and RAG applications.
+
+Fourth, context window.
+
+It determines how much information a model can process in a request, including the conversation and other input.
+
+And fifth, temperature.
+
+Temperature influences how a model selects its next token. Lower values generally produce more predictable responses, while higher values allow more variation.
+
+These are just the basics.
+
+Next, we'll explore Transformers, attention mechanisms, and how LLMs actually generate text.
+
+Follow Code2Offer to learn AI engineering, one concept at a time.

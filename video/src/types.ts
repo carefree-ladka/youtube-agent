@@ -23,6 +23,12 @@ export interface VideoElement {
   shape?: string | null;
   svg?: string | null;
   image_prompt?: string | null;
+  // Motion hints chosen by the storyboard LLM (interpreted in anim.ts).
+  // entrance: pop | rise | slide-left | slide-right | zoom-in | fade | reveal |
+  //           typewriter | count-up | none
+  animation?: string | null;
+  // continuous life: none | pulse | float | glow
+  emphasis?: string | null;
   style?: Record<string, unknown>;
 }
 
@@ -31,6 +37,8 @@ export interface VideoScene {
   startTime: number;
   duration: number;
   transition: string;
+  // Slow scene-level camera move: none | push-in | pull-back | pan-left | pan-right
+  camera?: string | null;
   elements: VideoElement[];
 }
 

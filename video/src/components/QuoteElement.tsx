@@ -1,17 +1,18 @@
 import React from "react";
-import {useCurrentFrame, useVideoConfig} from "remotion";
-import type {VideoElement, VideoStyle} from "../types";
-import {popIn} from "./anim";
+import { useCurrentFrame, useVideoConfig } from "remotion";
+import type { VideoElement, VideoStyle } from "../types";
+import { elementMotion } from "./anim";
 
 /** A key takeaway / quote with an accent side-bar. In-flow. */
-export const QuoteElement: React.FC<{element: VideoElement; style: VideoStyle}> = ({
+export const QuoteElement: React.FC<{ element: VideoElement; style: VideoStyle; index?: number }> = ({
   element,
   style,
+  index = 0,
 }) => {
   const frame = useCurrentFrame();
-  const {fps, width, height} = useVideoConfig();
+  const { fps, width, height } = useVideoConfig();
   const base = Math.min(width, height);
-  const anim = popIn(frame, fps, 0.1);
+  const anim = elementMotion(element, frame, fps, 0.1 + index * 0.12, width, "slide-left");
   const text = String(element.content ?? "").trim();
   if (!text) return null;
 
@@ -24,6 +25,8 @@ export const QuoteElement: React.FC<{element: VideoElement; style: VideoStyle}> 
         alignItems: "stretch",
         transform: anim.transform,
         opacity: anim.opacity,
+        clipPath: anim.clipPath,
+        filter: anim.filter,
       }}
     >
       <div

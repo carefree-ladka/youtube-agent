@@ -1,5 +1,11 @@
 import React from "react";
-import { AbsoluteFill, Audio, Sequence, staticFile, useVideoConfig } from "remotion";
+import {
+  AbsoluteFill,
+  Audio,
+  Sequence,
+  staticFile,
+  useVideoConfig,
+} from "remotion";
 import { SceneRenderer } from "../components/SceneRenderer";
 import { SubtitleOverlay } from "../components/SubtitleOverlay";
 import type { VideoStoryboard } from "../types";
@@ -16,7 +22,10 @@ const emphasisSfx: Record<string, string> = {
   code: "tick",
 };
 
-const pickTransitionSfx = (sceneIndex: number, sfx: Record<string, string>): string | undefined => {
+const pickTransitionSfx = (
+  sceneIndex: number,
+  sfx: Record<string, string>,
+): string | undefined => {
   for (let k = 0; k < TRANSITION_CYCLE.length; k++) {
     const name = TRANSITION_CYCLE[(sceneIndex + k) % TRANSITION_CYCLE.length];
     if (sfx[name]) return sfx[name];
@@ -32,19 +41,28 @@ export const ShortVideo: React.FC<VideoStoryboard> = (storyboard) => {
   const musicVolume = style.musicVolume ?? 0.12;
 
   return (
-    <AbsoluteFill style={{ backgroundColor: baseColor, fontFamily: style.fontFamily }}>
+    <AbsoluteFill
+      style={{ backgroundColor: baseColor, fontFamily: style.fontFamily }}
+    >
       {/* Narration audio (reused from the existing TTS stage). */}
       {audioSrc ? <Audio src={staticFile(audioSrc)} /> : null}
 
       {/* Soft, looping background-music bed, kept low under the narration. */}
-      {musicSrc ? <Audio src={staticFile(musicSrc)} loop volume={musicVolume} /> : null}
+      {musicSrc ? (
+        <Audio src={staticFile(musicSrc)} loop volume={musicVolume} />
+      ) : null}
 
       {/* Scenes, each shifted to its own timeline window. */}
       {scenes.map((scene) => {
         const from = Math.round(scene.startTime * fps);
         const durationInFrames = Math.max(1, Math.round(scene.duration * fps));
         return (
-          <Sequence key={scene.id} from={from} durationInFrames={durationInFrames} name={scene.id}>
+          <Sequence
+            key={scene.id}
+            from={from}
+            durationInFrames={durationInFrames}
+            name={scene.id}
+          >
             <SceneRenderer scene={scene} style={style} />
           </Sequence>
         );
@@ -54,48 +72,53 @@ export const ShortVideo: React.FC<VideoStoryboard> = (storyboard) => {
           short emphasis cue when a scene reveals a stat/quote/bullets/code. */}
       {style.enableSfx
         ? scenes.flatMap((scene, i) => {
-          if (!sfx) return [];
-          const cues: React.ReactNode[] = [];
-          const from = Math.round(scene.startTime * fps);
+            if (!sfx) return [];
+            const cues: React.ReactNode[] = [];
+            const from = Math.round(scene.startTime * fps);
 
-          // Transition cue (skip the very first scene).
-          if (i > 0) {
-            const file = pickTransitionSfx(i, sfx);
-            if (file) {
-              cues.push(
-                <Sequence
-                  key={`sfx-tr-${scene.id}`}
-                  from={Math.max(0, from - 2)}
-                  durationInFrames={Math.round(0.5 * fps)}
-                  name={`sfx-tr-${scene.id}`}
-                >
-                  <Audio src={staticFile(file)} volume={sfxVolume} />
-                </Sequence>,
-              );
+            // Transition cue (skip the very first scene).
+            if (i > 0) {
+              const file = pickTransitionSfx(i, sfx);
+              if (file) {
+                cues.push(
+                  <Sequence
+                    key={`sfx-tr-${scene.id}`}
+                    from={Math.max(0, from - 2)}
+                    durationInFrames={Math.round(0.5 * fps)}
+                    name={`sfx-tr-${scene.id}`}
+                  >
+                    <Audio src={staticFile(file)} volume={sfxVolume} />
+                  </Sequence>,
+                );
+              }
             }
-          }
 
-          // Emphasis cue for high-impact element types, slightly after the
-          // scene starts so it lands as the content appears.
-          const emphasisType = scene.elements.find((el) => emphasisSfx[el.type])?.type;
-          if (emphasisType) {
-            const emphasisFile = sfx[emphasisSfx[emphasisType]];
-            if (emphasisFile) {
-              cues.push(
-                <Sequence
-                  key={`sfx-emph-${scene.id}`}
-                  from={from + Math.round(0.35 * fps)}
-                  durationInFrames={Math.round(0.5 * fps)}
-                  name={`sfx-emph-${scene.id}`}
-                >
-                  <Audio src={staticFile(emphasisFile)} volume={sfxVolume * 0.8} />
-                </Sequence>,
-              );
+            // Emphasis cue for high-impact element types, slightly after the
+            // scene starts so it lands as the content appears.
+            const emphasisType = scene.elements.find(
+              (el) => emphasisSfx[el.type],
+            )?.type;
+            if (emphasisType) {
+              const emphasisFile = sfx[emphasisSfx[emphasisType]];
+              if (emphasisFile) {
+                cues.push(
+                  <Sequence
+                    key={`sfx-emph-${scene.id}`}
+                    from={from + Math.round(0.35 * fps)}
+                    durationInFrames={Math.round(0.5 * fps)}
+                    name={`sfx-emph-${scene.id}`}
+                  >
+                    <Audio
+                      src={staticFile(emphasisFile)}
+                      volume={sfxVolume * 0.8}
+                    />
+                  </Sequence>,
+                );
+              }
             }
-          }
 
-          return cues;
-        })
+            return cues;
+          })
         : null}
 
       {/* Burned-in, karaoke-highlighted subtitles over everything. */}

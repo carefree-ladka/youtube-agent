@@ -14,17 +14,24 @@ import shutil
 from collections.abc import Callable
 from pathlib import Path
 
-from app.config import Settings
+from app.config import PROJECT_ROOT, Settings
 from app.core.logging import get_logger
 from app.core.topics import classify_topic
 from app.models.schemas import VideoJobStatus, VideoRequest, VideoResult
-from app.models.video import orientation_for, palette_for_topic
+from app.models.video import (
+    ORIENTATION_SIZES,
+    VideoStoryboard,
+    get_style,
+    orientation_for,
+    palette_for_topic,
+)
 from app.services.llm.base import LLMClient
 from app.services.metadata_service import MetadataService
 from app.services.script_service import ScriptService
 from app.services.thumbnail.base import ThumbnailGenerator
 from app.services.tts.base import TTSProvider
 from app.services.video.asset_manager import AssetManager
+from app.services.video.external_scenes import prepare_external_scenes, resolve_scenes_dir
 from app.services.video.music import prepare_music
 from app.services.video.remotion_renderer import RemotionRenderer
 from app.services.video.sfx import generate_sfx
@@ -139,18 +146,55 @@ class VideoOrchestrator:
             )
         script_path = write_text(project_dir / "script.txt", script)
 
-        storyboard = await self._storyboards.generate(
-            request.topic,
-            script,
-            orientation=orientation,
-            target_seconds=target_seconds,
-            style_name=request.style,
-            language=request.language,
-            fps=request.fps,
-            technical=info.technical,
-            research=research_block,
-            image_queries=brief.image_queries,
+        # Bring-your-own visuals: if a scene-images folder is configured (per
+        # request or via VIDEO_SCENES_DIR), use those images as the scenes and
+        # SKIP the storyboard LLM + asset generation entirely.
+        scenes_dir = resolve_scenes_dir(
+            request.scene_images_dir or self._settings.video_scenes_dir,
+            project_root=PROJECT_ROOT,
         )
+        external_scenes = []
+        if scenes_dir is not None:
+            external_scenes = prepare_external_scenes(
+                scenes_dir,
+                assets_dir,
+                motion=request.scene_motion,
+                fit=request.scene_fit,
+                scrim=request.burn_subtitles,
+            )
+            if not external_scenes:
+                warnings.append(
+                    f"No usable scene images in {scenes_dir}; generated scenes instead."
+                )
+
+        if external_scenes:
+            logger.info(
+                "Using %d external scene image(s) from %s (skipping storyboard + asset gen)",
+                len(external_scenes), scenes_dir,
+            )
+            width, height = ORIENTATION_SIZES.get(orientation, ORIENTATION_SIZES["portrait"])
+            storyboard = VideoStoryboard(
+                width=width,
+                height=height,
+                fps=request.fps,
+                orientation=orientation,  # type: ignore[arg-type]
+                scenes=external_scenes,
+                style=get_style(request.style),
+                title=request.topic,
+            )
+        else:
+            storyboard = await self._storyboards.generate(
+                request.topic,
+                script,
+                orientation=orientation,
+                target_seconds=target_seconds,
+                style_name=request.style,
+                language=request.language,
+                fps=request.fps,
+                technical=info.technical,
+                research=research_block,
+                image_queries=brief.image_queries,
+            )
 
         # Theme the video by topic so different topics look different (unless the
         # user picked a specific non-default style preset).
@@ -238,7 +282,7 @@ class VideoOrchestrator:
         report("generating_assets")
         # Topic-specific inline SVG visuals (illustrations / mock screens /
         # diagrams) so every scene looks different; falls back to a designed SVG.
-        if self._svg is not None:
+        if self._svg is not None and not external_scenes:
             try:
                 await self._svg.generate(
                     storyboard, topic=request.topic, language=request.language
@@ -278,7 +322,7 @@ class VideoOrchestrator:
         storyboard.musicSrc = music_src
         storyboard.style.sfxVolume = self._settings.video_sfx_volume
         storyboard.style.musicVolume = self._settings.video_music_volume
-        storyboard.subtitles = subtitles
+        storyboard.subtitles = subtitles if request.burn_subtitles else []
         storyboard.sfx = sfx
         storyboard.title = title
         storyboard_path = write_json(project_dir / "storyboard.json", storyboard.model_dump())

@@ -40,10 +40,13 @@ export const defaultStoryboard: VideoStoryboard = {
       startTime: 0,
       duration: 3,
       transition: "slide",
+      camera: "push-in",
       elements: [
         {
           type: "text",
           content: "DATA-DRIVEN VIDEO",
+          animation: "zoom-in",
+          emphasis: "glow",
           style: { role: "title" },
         },
         { type: "shape", shape: "blob", style: { role: "accent" } },
@@ -54,11 +57,14 @@ export const defaultStoryboard: VideoStoryboard = {
       startTime: 3,
       duration: 3,
       transition: "fade",
+      camera: "pan-right",
       elements: [
         {
-          type: "text",
-          content: "ANY TOPIC, NO NEW CODE",
-          style: { role: "headline" },
+          type: "stat",
+          content: "100x",
+          data: "more engaging",
+          animation: "count-up",
+          emphasis: "pulse",
         },
       ],
     },
